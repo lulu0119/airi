@@ -39,6 +39,7 @@ profile-switcher:
 waiting: Waiting
 whiteboard:
   title: Whiteboard
+  toggle: Toggle whiteboard
   close: Close
   default-canvas-name: Canvas
   create-canvas: New canvas

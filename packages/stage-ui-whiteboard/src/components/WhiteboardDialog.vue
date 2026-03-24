@@ -6,10 +6,12 @@ import { useI18n } from 'vue-i18n'
 
 import WhiteboardPanel from './WhiteboardPanel.vue'
 
+import { useWhiteboardDialog } from '../composables/use-whiteboard-dialog'
+
 const { t } = useI18n()
 const { isReady } = useDeferredMount()
 
-const open = defineModel<boolean>('open', { default: true })
+const { dialogOpen, closeDialog } = useWhiteboardDialog()
 
 const panelRef = useTemplateRef<HTMLElement>('panelRef')
 const handleRef = useTemplateRef<HTMLElement>('handleRef')
@@ -116,14 +118,14 @@ useEventListener(document, 'mouseup', () => {
 <template>
   <Teleport to="body">
     <div
-      v-show="open"
+      v-show="dialogOpen"
       ref="panelRef"
       class="fixed z-[200] flex flex-col overflow-hidden border-4 border-primary-200/20 rounded-xl bg-primary-50/95 shadow-2xl backdrop-blur-md dark:border-primary-400/20 dark:bg-primary-950/90"
       :class="{ 'cursor-nwse-resize': isResizing }"
       :style="[dragStyle, { width: `${width}px`, height: `${height}px` }]"
       aria-modal="true"
       role="dialog"
-      :aria-hidden="!open"
+      :aria-hidden="!dialogOpen"
     >
       <div
         ref="handleRef"
@@ -136,7 +138,7 @@ useEventListener(document, 'mouseup', () => {
           type="button"
           class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-lg text-neutral-500 transition-colors hover:bg-primary-200/30 dark:text-neutral-400 hover:text-neutral-800 dark:hover:bg-primary-400/20 dark:hover:text-neutral-100"
           :aria-label="t('stage.whiteboard.close')"
-          @click="open = false"
+          @click="closeDialog()"
         >
           <div class="i-ph:x-bold h-4 w-4" />
         </button>

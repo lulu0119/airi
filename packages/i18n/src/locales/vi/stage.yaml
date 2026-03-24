@@ -39,6 +39,7 @@ profile-switcher:
 waiting: Đang chờ
 whiteboard:
   title: Bảng vẽ
+  toggle: Bật/tắt bảng vẽ
   close: Đóng
   default-canvas-name: Canvas
   create-canvas: Canvas mới

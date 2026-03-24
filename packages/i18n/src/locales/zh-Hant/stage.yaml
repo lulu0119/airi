@@ -39,6 +39,7 @@ profile-switcher:
 waiting: 等待中
 whiteboard:
   title: 白板
+  toggle: 顯示/隱藏白板
   close: 關閉
   default-canvas-name: 畫布
   create-canvas: 新增畫布

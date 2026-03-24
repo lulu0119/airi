@@ -1,12 +1,16 @@
 <script setup lang="ts">
+import { useWhiteboardDialog } from '@proj-airi/stage-ui-whiteboard'
 import { useChatMaintenanceStore } from '@proj-airi/stage-ui/stores/chat/maintenance'
 import { useTheme } from '@proj-airi/ui'
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import { BackgroundDialogPicker } from '../Backgrounds'
 
 const { cleanupMessages } = useChatMaintenanceStore()
 const { isDark, toggleDark } = useTheme()
+const { toggleDialog } = useWhiteboardDialog()
+const { t } = useI18n()
 
 const backgroundDialogOpen = ref(false)
 </script>
@@ -38,6 +42,18 @@ const backgroundDialogOpen = ref(false)
         <div v-if="isDark" i-solar:moon-bold />
         <div v-else i-solar:sun-2-bold />
       </Transition>
+    </button>
+    <button
+      class="max-h-[10lh] min-h-[1lh]"
+      bg="neutral-100 dark:neutral-800"
+      text="lg neutral-500 dark:neutral-400"
+      flex items-center justify-center rounded-md p-2 outline-none
+      transition-colors transition-transform active:scale-95
+      :title="t('stage.whiteboard.toggle')"
+      :aria-label="t('stage.whiteboard.toggle')"
+      @click="toggleDialog()"
+    >
+      <div i-ph:chalkboard-simple-bold h-5 w-5 />
     </button>
     <button
       class="max-h-[10lh] min-h-[1lh]"

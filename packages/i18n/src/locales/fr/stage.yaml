@@ -39,6 +39,7 @@ profile-switcher:
 waiting: En attente
 whiteboard:
   title: Tableau blanc
+  toggle: Afficher ou masquer le tableau blanc
   close: Fermer
   default-canvas-name: Toile
   create-canvas: Nouvelle toile

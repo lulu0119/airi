@@ -39,6 +39,7 @@ profile-switcher:
 waiting: 대기 중
 whiteboard:
   title: 화이트보드
+  toggle: 화이트보드 표시 전환
   close: 닫기
   default-canvas-name: 캔버스
   create-canvas: 새 캔버스

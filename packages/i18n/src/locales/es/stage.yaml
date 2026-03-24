@@ -39,6 +39,7 @@ profile-switcher:
 waiting: Esperando...
 whiteboard:
   title: Pizarra
+  toggle: Mostrar u ocultar pizarra
   close: Cerrar
   default-canvas-name: Lienzo
   create-canvas: Nuevo lienzo

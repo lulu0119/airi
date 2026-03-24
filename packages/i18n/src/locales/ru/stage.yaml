@@ -39,6 +39,7 @@ profile-switcher:
 waiting: Ожидание
 whiteboard:
   title: Доска
+  toggle: Показать или скрыть доску
   close: Закрыть
   default-canvas-name: Холст
   create-canvas: Новый холст

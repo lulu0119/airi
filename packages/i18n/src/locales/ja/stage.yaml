@@ -39,6 +39,7 @@ profile-switcher:
 waiting: 待機中
 whiteboard:
   title: ホワイトボード
+  toggle: ホワイトボードの表示切替
   close: 閉じる
   default-canvas-name: キャンバス
   create-canvas: 新しいキャンバス
