@@ -37,3 +37,26 @@ profile-switcher:
   new-profile-name: Profile name
   manage: Manage Profiles
 waiting: 대기 중
+whiteboard:
+  title: 화이트보드
+  close: 닫기
+  default-canvas-name: 캔버스
+  create-canvas: 새 캔버스
+  delete-canvas: 캔버스 삭제
+  empty-hint: 캔버스가 비어 있어요. 여기서 시작하거나 Airi와 함께 그려보세요.
+  create-first: 첫 캔버스 만들기
+  canvas-name: 이름
+  canvas-name-placeholder: 스케치
+  cancel: 취소
+  confirm-create: 만들기
+  delete-title: 캔버스 삭제
+  delete-confirm: 캔버스와 모든 획이 삭제됩니다. 되돌릴 수 없습니다.
+  delete-confirm-named: '"{name}"을(를) 삭제하면 해당 캔버스의 모든 획이 지워집니다. 되돌릴 수 없습니다.'
+  delete-canvas-named: '캔버스 "{name}" 삭제'
+  delete: 삭제
+  delete-current: 현재 캔버스 삭제
+  delete-this-canvas: 이 캔버스를 삭제하시겠습니까?
+  toolbar:
+    color: 색상
+    width: 굵기
+    unit: px

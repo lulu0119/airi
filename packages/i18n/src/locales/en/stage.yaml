@@ -37,3 +37,26 @@ profile-switcher:
   new-profile-name: Profile name
   manage: Manage Profiles
 waiting: Waiting
+whiteboard:
+  title: Whiteboard
+  close: Close
+  default-canvas-name: Canvas
+  create-canvas: New canvas
+  delete-canvas: Delete canvas
+  empty-hint: The canvas is empty. Start creating here, or invite Airi to sketch with you.
+  create-first: Create first canvas
+  canvas-name: Name
+  canvas-name-placeholder: My sketch
+  cancel: Cancel
+  confirm-create: Create
+  delete-title: Delete canvas
+  delete-confirm: This removes the canvas and all strokes. This cannot be undone.
+  delete-confirm-named: Removing "{name}" deletes all strokes on that canvas. This cannot be undone.
+  delete-canvas-named: Delete canvas "{name}"
+  delete: Delete
+  delete-current: Delete current
+  delete-this-canvas: Delete this canvas?
+  toolbar:
+    color: Color
+    width: Width
+    unit: px

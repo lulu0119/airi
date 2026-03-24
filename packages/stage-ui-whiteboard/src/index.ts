@@ -1,0 +1,7 @@
+export { default as WhiteboardDialog } from './components/WhiteboardDialog.vue'
+export { default as WhiteboardPanel } from './components/WhiteboardPanel.vue'
+export { setupStageUiWhiteboard } from './register'
+export { useWhiteboardCanvasStore } from './stores/whiteboard-canvas'
+export { useWhiteboardPanelStore } from './stores/whiteboard-panel'
+export { createWhiteboardTools } from './tools/create-whiteboard-tools'
+export type { Canvas, CanvasPath } from './types/canvas'

@@ -37,3 +37,26 @@ profile-switcher:
   new-profile-name: Profile name
   manage: Управление профилями
 waiting: Ожидание
+whiteboard:
+  title: Доска
+  close: Закрыть
+  default-canvas-name: Холст
+  create-canvas: Новый холст
+  delete-canvas: Удалить холст
+  empty-hint: Холст пуст. Начните создавать здесь, или пригласите Airi поработать вместе.
+  create-first: Создать первый холст
+  canvas-name: Имя
+  canvas-name-placeholder: Эскиз
+  cancel: Отмена
+  confirm-create: Создать
+  delete-title: Удалить холст
+  delete-confirm: Холст и все штрихи будут удалены без восстановления.
+  delete-confirm-named: Удаление «{name}» сотрёт все штрихи на этом холсте. Восстановление невозможно.
+  delete-canvas-named: Удалить холст «{name}»
+  delete: Удалить
+  delete-current: Удалить текущий
+  delete-this-canvas: Удалить этот холст?
+  toolbar:
+    color: Цвет
+    width: Ширина
+    unit: px

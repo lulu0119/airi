@@ -34,6 +34,7 @@
     "./stores/settings/analytics": "./src/stores/settings/analytics.ts",
     "./stores/settings": "./src/stores/settings/index.ts",
     "./stores/modules/vision": "./src/stores/modules/vision/index.ts",
+    "./stores/chat/whiteboard-tools-registry": "./src/stores/chat/whiteboard-tools-registry.ts",
     "./stores/*": "./src/stores/*.ts",
     "./stores": "./src/stores/index.ts",
     "./workers/vad": "./src/workers/vad/index.ts",

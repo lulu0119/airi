@@ -37,3 +37,26 @@ profile-switcher:
   new-profile-name: Profile name
   manage: Manage Profiles
 waiting: Esperando...
+whiteboard:
+  title: Pizarra
+  close: Cerrar
+  default-canvas-name: Lienzo
+  create-canvas: Nuevo lienzo
+  delete-canvas: Eliminar lienzo
+  empty-hint: El lienzo está vacío. Empieza a crear aquí, o invita a Airi a dibujar contigo.
+  create-first: Crear primer lienzo
+  canvas-name: Nombre
+  canvas-name-placeholder: Mi boceto
+  cancel: Cancelar
+  confirm-create: Crear
+  delete-title: Eliminar lienzo
+  delete-confirm: Se eliminará el lienzo y todos los trazos. No se puede deshacer.
+  delete-confirm-named: Al eliminar "{name}" se borrarán todos los trazos de ese lienzo. No se puede deshacer.
+  delete-canvas-named: Eliminar lienzo "{name}"
+  delete: Eliminar
+  delete-current: Eliminar actual
+  delete-this-canvas: ¿Eliminar este lienzo?
+  toolbar:
+    color: Color
+    width: Grosor
+    unit: px

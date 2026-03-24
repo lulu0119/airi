@@ -37,3 +37,26 @@ profile-switcher:
   new-profile-name: Profile name
   manage: Manage Profiles
 waiting: 等待中
+whiteboard:
+  title: 白板
+  close: 關閉
+  default-canvas-name: 畫布
+  create-canvas: 新增畫布
+  delete-canvas: 刪除畫布
+  empty-hint: 畫布是空的。從這裡開始創作，或邀請 Airi 一起塗鴉。
+  create-first: 建立第一個畫布
+  canvas-name: 名稱
+  canvas-name-placeholder: 我的草稿
+  cancel: 取消
+  confirm-create: 建立
+  delete-title: 刪除畫布
+  delete-confirm: 將刪除此畫布與所有筆畫，且無法還原。
+  delete-confirm-named: 刪除「{name}」將清除該畫布上的所有筆畫，且無法還原。
+  delete-canvas-named: 刪除畫布「{name}」
+  delete: 刪除
+  delete-current: 刪除目前畫布
+  delete-this-canvas: 確定刪除此畫布？
+  toolbar:
+    color: 顏色
+    width: 粗細
+    unit: 像素

@@ -37,3 +37,26 @@ profile-switcher:
   new-profile-name: Nom du profil
   manage: Gérer les Profils
 waiting: En attente
+whiteboard:
+  title: Tableau blanc
+  close: Fermer
+  default-canvas-name: Toile
+  create-canvas: Nouvelle toile
+  delete-canvas: Supprimer la toile
+  empty-hint: La toile est vide. Commencez à créer ici, ou invitez Airi à esquisser avec vous.
+  create-first: Créer la première toile
+  canvas-name: Nom
+  canvas-name-placeholder: Mon croquis
+  cancel: Annuler
+  confirm-create: Créer
+  delete-title: Supprimer la toile
+  delete-confirm: Cela supprime la toile et tous les traits. Action irréversible.
+  delete-confirm-named: Supprimer « {name} » efface tous les traits sur cette toile. Action irréversible.
+  delete-canvas-named: Supprimer la toile « {name} »
+  delete: Supprimer
+  delete-current: Supprimer la toile actuelle
+  delete-this-canvas: Supprimer cette toile ?
+  toolbar:
+    color: Couleur
+    width: Épaisseur
+    unit: px

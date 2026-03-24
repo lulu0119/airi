@@ -37,3 +37,26 @@ profile-switcher:
   new-profile-name: Profile name
   manage: プロファイルを管理
 waiting: 待機中
+whiteboard:
+  title: ホワイトボード
+  close: 閉じる
+  default-canvas-name: キャンバス
+  create-canvas: 新しいキャンバス
+  delete-canvas: キャンバスを削除
+  empty-hint: キャンバスは空です。ここから始めるか、Airi を誘って一緒に描きましょう。
+  create-first: 最初のキャンバスを作成
+  canvas-name: 名前
+  canvas-name-placeholder: 下書き
+  cancel: キャンセル
+  confirm-create: 作成
+  delete-title: キャンバスを削除
+  delete-confirm: キャンバスとすべての描画が削除されます。元に戻せません。
+  delete-confirm-named: 「{name}」を削除すると、そのキャンバス上のすべての描画が消えます。元に戻せません。
+  delete-canvas-named: キャンバス「{name}」を削除
+  delete: 削除
+  delete-current: 現在のキャンバスを削除
+  delete-this-canvas: このキャンバスを削除しますか？
+  toolbar:
+    color: 色
+    width: 太さ
+    unit: px

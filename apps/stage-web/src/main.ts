@@ -6,6 +6,7 @@ import NProgress from 'nprogress'
 
 import { autoAnimatePlugin } from '@formkit/auto-animate/vue'
 import { isEnvTruthy } from '@proj-airi/stage-shared'
+import { setupStageUiWhiteboard } from '@proj-airi/stage-ui-whiteboard/register'
 import { MotionPlugin } from '@vueuse/motion'
 import { createPinia } from 'pinia'
 import { setupLayouts } from 'virtual:generated-layouts'
@@ -45,7 +46,8 @@ router.afterEach(() => {
   NProgress.done()
 })
 
-createApp(App)
+const app = createApp(App)
+app
   .use(MotionPlugin)
   // TODO: Fix autoAnimatePlugin type error
   .use(autoAnimatePlugin as unknown as Plugin)
@@ -53,7 +55,10 @@ createApp(App)
   .use(pinia)
   .use(i18n)
   .use(Tres)
-  .mount('#app')
+
+setupStageUiWhiteboard()
+
+app.mount('#app')
 
 if (import.meta.env.DEV && !import.meta.env.SSR) {
   function captureEvents(el: HTMLElement) {

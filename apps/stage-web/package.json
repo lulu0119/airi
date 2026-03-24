@@ -35,6 +35,7 @@
     "@proj-airi/stage-shared": "workspace:^",
     "@proj-airi/stage-ui": "workspace:^",
     "@proj-airi/stage-ui-three": "workspace:^",
+    "@proj-airi/stage-ui-whiteboard": "workspace:^",
     "@proj-airi/stream-kit": "workspace:^",
     "@proj-airi/ui": "workspace:^",
     "@proj-airi/ui-transitions": "workspace:^",

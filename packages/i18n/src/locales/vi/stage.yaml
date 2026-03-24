@@ -37,3 +37,26 @@ profile-switcher:
   new-profile-name: Profile name
   manage: Manage Profiles
 waiting: Đang chờ
+whiteboard:
+  title: Bảng vẽ
+  close: Đóng
+  default-canvas-name: Canvas
+  create-canvas: Canvas mới
+  delete-canvas: Xóa canvas
+  empty-hint: Canvas trống. Bắt đầu sáng tạo từ đây, hoặc mời Airi cùng vẽ.
+  create-first: Tạo canvas đầu tiên
+  canvas-name: Tên
+  canvas-name-placeholder: Phác thảo
+  cancel: Hủy
+  confirm-create: Tạo
+  delete-title: Xóa canvas
+  delete-confirm: Xóa canvas và mọi nét vẽ. Không hoàn tác được.
+  delete-confirm-named: Xóa "{name}" sẽ xóa mọi nét trên canvas đó. Không hoàn tác được.
+  delete-canvas-named: Xóa canvas "{name}"
+  delete: Xóa
+  delete-current: Xóa canvas hiện tại
+  delete-this-canvas: Xóa canvas này?
+  toolbar:
+    color: Màu
+    width: Độ dày
+    unit: px

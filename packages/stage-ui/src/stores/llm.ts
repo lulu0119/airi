@@ -7,6 +7,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 import { debug, mcp } from '../tools'
+import { getWhiteboardTools } from './chat/whiteboard-tools-registry'
 
 export type StreamEvent
   = | { type: 'text-delta', text: string }
@@ -68,6 +69,7 @@ async function streamFrom(model: string, chatProvider: ChatProvider, messages: M
     ? [
         ...await mcp(),
         ...await debug(),
+        ...await getWhiteboardTools(),
         ...await resolveTools(),
       ]
     : undefined
@@ -105,6 +107,7 @@ async function streamFrom(model: string, chatProvider: ChatProvider, messages: M
     }
 
     try {
+      // xsai#274: when upstream adds prepareStep, pass through here for view_canvas_image (stage-ui-whiteboard Phase 2).
       const streamResult = streamText({
         ...chatConfig,
         abortSignal: options?.abortSignal,

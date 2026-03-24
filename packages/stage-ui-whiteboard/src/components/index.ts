@@ -1,0 +1,5 @@
+export { default as WhiteboardCanvasArea } from './WhiteboardCanvasArea.vue'
+export { default as WhiteboardDialog } from './WhiteboardDialog.vue'
+export { default as WhiteboardPage } from './WhiteboardPage.vue'
+export { default as WhiteboardPanel } from './WhiteboardPanel.vue'
+export { default as WhiteboardSvgCanvas } from './WhiteboardSvgCanvas.vue'

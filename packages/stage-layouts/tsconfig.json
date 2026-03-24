@@ -9,6 +9,10 @@
     ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "paths": {
+      "@proj-airi/stage-ui-whiteboard": ["../stage-ui-whiteboard/src/index.ts"],
+      "@proj-airi/stage-ui-whiteboard/*": ["../stage-ui-whiteboard/src/*"]
+    },
     "resolveJsonModule": true,
     "types": [
       "vitest",
