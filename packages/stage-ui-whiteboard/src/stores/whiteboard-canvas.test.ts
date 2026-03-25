@@ -34,4 +34,59 @@ describe('useWhiteboardCanvasStore', () => {
     expect(store.deletePath(c.id, p!.id)).toBe(true)
     expect(store.listPaths(c.id)).toHaveLength(0)
   })
+
+  it('undoes and redoes add and delete', () => {
+    const store = useWhiteboardCanvasStore()
+    const c = store.createCanvas('B')
+    const p = store.addPath(c.id, {
+      d: 'M0 0',
+      stroke: '#000',
+      strokeWidth: 2,
+      fill: 'none',
+      opacity: 1,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+    })
+    expect(store.canUndo(c.id)).toBe(true)
+    expect(store.undo(c.id)).toBe(true)
+    expect(store.listPaths(c.id)).toHaveLength(0)
+    expect(store.canRedo(c.id)).toBe(true)
+    expect(store.redo(c.id)).toBe(true)
+    expect(store.listPaths(c.id)).toHaveLength(1)
+    expect(store.listPaths(c.id)[0]!.id).toBe(p!.id)
+
+    expect(store.deletePath(c.id, p!.id)).toBe(true)
+    expect(store.listPaths(c.id)).toHaveLength(0)
+    expect(store.undo(c.id)).toBe(true)
+    expect(store.listPaths(c.id)).toHaveLength(1)
+    expect(store.redo(c.id)).toBe(true)
+    expect(store.listPaths(c.id)).toHaveLength(0)
+  })
+
+  it('clears redo stack on new edit after undo', () => {
+    const store = useWhiteboardCanvasStore()
+    const c = store.createCanvas('C')
+    store.addPath(c.id, {
+      d: 'M1 1',
+      stroke: '#000',
+      strokeWidth: 2,
+      fill: 'none',
+      opacity: 1,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+    })
+    store.undo(c.id)
+    expect(store.canRedo(c.id)).toBe(true)
+    store.addPath(c.id, {
+      d: 'M2 2',
+      stroke: '#f00',
+      strokeWidth: 2,
+      fill: 'none',
+      opacity: 1,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+    })
+    expect(store.canRedo(c.id)).toBe(false)
+    expect(store.listPaths(c.id)).toHaveLength(1)
+  })
 })

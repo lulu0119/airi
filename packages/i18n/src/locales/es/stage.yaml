@@ -61,3 +61,9 @@ whiteboard:
     color: Color
     width: Grosor
     unit: px
+    tool-draw: Pincel
+    tool-erase: Borrador — toca un trazo para borrarlo
+    undo: Deshacer
+    redo: Rehacer
+    custom-color: Color personalizado…
+    width-aria: 'Grosor del trazo: {n} {unit}'

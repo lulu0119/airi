@@ -61,3 +61,9 @@ whiteboard:
     color: 색상
     width: 굵기
     unit: px
+    tool-draw: 브러시
+    tool-erase: 지우개 — 선을 눌러 삭제
+    undo: 실행 취소
+    redo: 다시 실행
+    custom-color: 사용자 지정 색…
+    width-aria: '선 굵기: {n}{unit}'

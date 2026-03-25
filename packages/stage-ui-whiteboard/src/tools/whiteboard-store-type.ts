@@ -10,6 +10,10 @@ export interface WhiteboardCanvasStore {
   listCanvases: () => Canvas[]
   addPath: (canvasId: string, pathData: Omit<CanvasPath, 'id'>) => CanvasPath | undefined
   deletePath: (canvasId: string, pathId: string) => boolean
+  undo: (canvasId: string) => boolean
+  redo: (canvasId: string) => boolean
+  canUndo: (canvasId: string) => boolean
+  canRedo: (canvasId: string) => boolean
   listPaths: (canvasId: string) => CanvasPath[]
   toSVGString: (canvasId: string) => string
 }

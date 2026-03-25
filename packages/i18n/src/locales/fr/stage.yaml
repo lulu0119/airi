@@ -61,3 +61,9 @@ whiteboard:
     color: Couleur
     width: Épaisseur
     unit: px
+    tool-draw: Pinceau
+    tool-erase: Gomme — toucher un trait pour le supprimer
+    undo: Annuler
+    redo: Rétablir
+    custom-color: Couleur personnalisée…
+    width-aria: 'Épaisseur du trait : {n} {unit}'

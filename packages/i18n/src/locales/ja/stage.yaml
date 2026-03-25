@@ -61,3 +61,9 @@ whiteboard:
     color: 色
     width: 太さ
     unit: px
+    tool-draw: ブラシ
+    tool-erase: 消しゴム — 線をタップで削除
+    undo: 元に戻す
+    redo: やり直す
+    custom-color: 色を指定…
+    width-aria: '線の太さ: {n}{unit}'

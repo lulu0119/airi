@@ -61,3 +61,9 @@ whiteboard:
     color: Цвет
     width: Ширина
     unit: px
+    tool-draw: Кисть
+    tool-erase: Ластик — нажмите на штрих, чтобы удалить
+    undo: Отменить
+    redo: Вернуть
+    custom-color: Свой цвет…
+    width-aria: 'Толщина штриха: {n} {unit}'

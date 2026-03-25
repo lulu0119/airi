@@ -61,3 +61,9 @@ whiteboard:
     color: 颜色
     width: 粗细
     unit: 像素
+    tool-draw: 画笔
+    tool-erase: 橡皮 — 点击笔划即可删除
+    undo: 撤销
+    redo: 重做
+    custom-color: 自定义颜色…
+    width-aria: '笔划粗细：{n}{unit}'
