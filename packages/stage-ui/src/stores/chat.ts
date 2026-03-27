@@ -13,6 +13,7 @@ import { ref, toRaw } from 'vue'
 import { useAnalytics } from '../composables'
 import { useLlmmarkerParser } from '../composables/llm-marker-parser'
 import { categorizeResponse, createStreamingCategorizer } from '../composables/response-categoriser'
+import { registerBuiltInChatToolResultRenderers } from '../libs/chat-tool-result'
 import { createDatetimeContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
 import { createChatHooks } from './chat/hooks'
@@ -243,6 +244,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
             if (ctx.data.type === 'tool-call-result') {
               buildingMessage.tool_results.push(ctx.data)
+              buildingMessage.slices.push(ctx.data)
               updateUI()
             }
           },
@@ -442,3 +444,5 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     onChatTurnComplete: hooks.onChatTurnComplete,
   }
 })
+
+registerBuiltInChatToolResultRenderers()

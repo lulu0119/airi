@@ -62,8 +62,8 @@ const defaultMcpConfig: ElectronMcpStdioConfigFile = {
   mcpServers: {},
 }
 const toolNameSeparator = '::'
-const mcpRequestTimeoutMsec = 10_000
-const mcpRequestMaxTotalTimeoutMsec = 15_000
+const mcpRequestTimeoutMsec = 60_000
+const mcpRequestMaxTotalTimeoutMsec = 90_000
 
 function stringifyError(error: unknown) {
   if (error instanceof Error) {

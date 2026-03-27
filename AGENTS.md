@@ -44,6 +44,7 @@ Concise but detailed reference for contributors working across the `moeru-ai/air
   - `src/stores/modules/`: AIRI orchestration modules.
   - `src/composables/`: reusable Vue composables (business-oriented).
   - `src/components/`: business components; `src/components/scenarios/` for page/use-case-specific pieces.
+  - Chat **tool results** (MCP / function tools): pluggable renderers via `registerChatToolResultRenderer` from `@proj-airi/stage-ui/stores/chat-tool-result-registry` (see `src/components/scenarios/chat/chat-tool-result-block.vue`). Built-ins register when the chat orchestrator store loads (`registerBuiltInChatToolResultRenderers` in `src/libs/chat-tool-result/register-builtins.ts`). Declarative manifest shape: `@proj-airi/plugin-protocol/types` → `ChatToolResultRendererContribution` (Phase 2 host wiring).
   - Stories: `packages/stage-ui/stories`, `packages/stage-ui/histoire.config.ts` (e.g. `components/misc/Button.story.vue`).
 - `packages/stage-ui-three`: Three.js bindings + Vue components.
 - `packages/stage-ui-pixi`: Planned Pixi bindings.

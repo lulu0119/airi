@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import type { ChatAssistantMessage, ChatHistoryItem, ChatSlices, ChatSlicesText } from '../../../../types/chat'
+import type { ChatAssistantMessage, ChatHistoryItem, ChatSlices, ChatSlicesText, ChatSlicesToolCallResult } from '../../../../types/chat'
 
 import { computed } from 'vue'
 
+import ChatToolResultBlock from '../chat-tool-result-block.vue'
 import ChatResponsePart from './response-part.vue'
 import ChatToolCallBlock from './tool-call-block.vue'
 
@@ -25,9 +26,29 @@ const emit = defineEmits<{
   (e: 'delete'): void
 }>()
 
+function augmentAssistantSlices(message: ChatAssistantMessage): ChatSlices[] {
+  const base = message.slices ?? []
+  const idsWithResultInSlices = new Set(
+    base
+      .filter((s): s is ChatSlicesToolCallResult => s.type === 'tool-call-result')
+      .map(s => s.id),
+  )
+  const fromToolResults: ChatSlices[] = (message.tool_results ?? [])
+    .filter(tr => !idsWithResultInSlices.has(tr.id))
+    .map(tr => ({
+      type: 'tool-call-result',
+      id: tr.id,
+      result: tr.result,
+    } as ChatSlicesToolCallResult))
+  return [...base, ...fromToolResults]
+}
+
 const resolvedSlices = computed<ChatSlices[]>(() => {
-  if (props.message.slices?.length) {
-    return props.message.slices
+  const hasSlices = (props.message.slices?.length ?? 0) > 0
+  const hasToolResults = (props.message.tool_results?.length ?? 0) > 0
+
+  if (hasSlices || hasToolResults) {
+    return augmentAssistantSlices(props.message)
   }
 
   if (typeof props.message.content === 'string' && props.message.content.trim()) {
@@ -77,7 +98,12 @@ const copyText = computed(() => getChatHistoryItemCopyText(props.message as Chat
                 :args="slice.toolCall.args"
                 class="mb-2"
               />
-              <template v-else-if="slice.type === 'tool-call-result'" />
+              <ChatToolResultBlock
+                v-else-if="slice.type === 'tool-call-result'"
+                :tool-call-id="slice.id"
+                :result="slice.result"
+                :message-slices="resolvedSlices"
+              />
               <template v-else-if="slice.type === 'text'">
                 <MarkdownRenderer :content="slice.text" />
               </template>
