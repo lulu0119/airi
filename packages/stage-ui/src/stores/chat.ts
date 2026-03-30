@@ -8,18 +8,20 @@ import type { StreamEvent, StreamOptions } from './llm'
 import { createQueue } from '@proj-airi/stream-kit'
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
-import { ref, toRaw } from 'vue'
+import { ref, shallowRef, toRaw } from 'vue'
 
 import { useAnalytics } from '../composables'
 import { useLlmmarkerParser } from '../composables/llm-marker-parser'
 import { categorizeResponse, createStreamingCategorizer } from '../composables/response-categoriser'
-import { createDatetimeContext } from './chat/context-providers'
+import { createDatetimeContext, createUserInterruptedAssistantContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
 import { createChatHooks } from './chat/hooks'
 import { useChatSessionStore } from './chat/session-store'
 import { useChatStreamStore } from './chat/stream-store'
 import { useLLM } from './llm'
 import { useConsciousnessStore } from './modules/consciousness'
+import { useSettingsChatInterrupt } from './settings/chat-interrupt'
+import { useStagePlaybackInterruptStore } from './stage-playback-interrupt'
 
 interface SendOptions {
   model: string
@@ -49,6 +51,37 @@ interface QueuedSend {
   }
 }
 
+export const USER_INTERRUPT_ABORT_MESSAGE = 'user-interrupt'
+
+export type UserInterruptModality = 'voice' | 'text'
+
+function isUserInterruptAbort(err: unknown): boolean {
+  if (!err || typeof err !== 'object')
+    return false
+  const e = err as { name?: string, message?: string }
+  return e.name === 'AbortError' && e.message === USER_INTERRUPT_ABORT_MESSAGE
+}
+
+function sliceToolCallId(s: ChatSlices): string | undefined {
+  if (s.type !== 'tool-call')
+    return undefined
+  const tc = s.toolCall as { toolCallId?: string, id?: string }
+  return tc.toolCallId ?? tc.id
+}
+
+/** Tool calls in the current turn that do not yet have a matching tool_result slice. */
+function buildingHasPendingTools(bm: StreamingAssistantMessage): boolean {
+  const pending = new Set<string>()
+  for (const s of bm.slices) {
+    const id = sliceToolCallId(s)
+    if (id)
+      pending.add(id)
+  }
+  for (const tr of bm.tool_results)
+    pending.delete(tr.id)
+  return pending.size > 0
+}
+
 export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
   const llmStore = useLLM()
   const consciousnessStore = useConsciousnessStore()
@@ -64,6 +97,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
   const sending = ref(false)
   const pendingQueuedSends = ref<QueuedSend[]>([])
   const hooks = createChatHooks()
+
+  const activeTurnAbortController = shallowRef<AbortController | null>(null)
+  const activeTurnBuildingMessage = shallowRef<StreamingAssistantMessage | null>(null)
+  const activeTurnSessionId = ref<string | null>(null)
 
   const sendQueue = createQueue<QueuedSend>({
     handlers: [
@@ -138,6 +175,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
     updateUI()
     trackFirstMessage()
+
+    let turnAbortForFinally: AbortController | null = null
 
     try {
       await hooks.emitBeforeMessageComposedHooks(sendingMessage, streamingMessageContext)
@@ -254,7 +293,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         const rawMessage = toRaw(withoutContext)
 
         if (rawMessage.role === 'assistant') {
-          const { slices: _slices, tool_results: _toolResults, categorization: _categorization, ...rest } = rawMessage as ChatAssistantMessage
+          const { slices: _slices, tool_results: _toolResults, categorization: _categorization, interrupted: _interrupted, ...rest } = rawMessage as ChatAssistantMessage
           return toRaw(rest)
         }
 
@@ -294,60 +333,102 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       if (shouldAbort())
         return
 
-      await llmStore.stream(options.model, options.chatProvider, newMessages as Message[], {
-        headers,
-        tools: options.tools,
-        // NOTICE: xsai stream may emit `finish` before tool steps continue, so keep waiting until
-        // the final non-tool finish to avoid ending the chat turn with no assistant reply.
-        waitForTools: true,
-        onStreamEvent: async (event: StreamEvent) => {
-          switch (event.type) {
-            case 'tool-call':
-              toolCallQueue.enqueue({
-                type: 'tool-call',
-                toolCall: event,
-              })
+      const turnAbort = new AbortController()
+      turnAbortForFinally = turnAbort
+      activeTurnAbortController.value = turnAbort
+      activeTurnBuildingMessage.value = buildingMessage
+      activeTurnSessionId.value = sessionId
 
-              break
-            case 'tool-result':
-              toolCallQueue.enqueue({
-                type: 'tool-call-result',
-                id: event.toolCallId,
-                result: event.result,
-              })
+      try {
+        await llmStore.stream(options.model, options.chatProvider, newMessages as Message[], {
+          headers,
+          tools: options.tools,
+          abortSignal: turnAbort.signal,
+          // NOTICE: xsai stream may emit `finish` before tool steps continue, so keep waiting until
+          // the final non-tool finish to avoid ending the chat turn with no assistant reply.
+          waitForTools: true,
+          onStreamEvent: async (event: StreamEvent) => {
+            switch (event.type) {
+              case 'tool-call':
+                toolCallQueue.enqueue({
+                  type: 'tool-call',
+                  toolCall: event,
+                })
 
-              break
-            case 'text-delta':
-              fullText += event.text
-              await parser.consume(event.text)
-              break
-            case 'finish':
-              break
-            case 'error':
-              throw event.error ?? new Error('Stream error')
-          }
-        },
-      })
+                break
+              case 'tool-result':
+                toolCallQueue.enqueue({
+                  type: 'tool-call-result',
+                  id: event.toolCallId,
+                  result: event.result,
+                })
 
-      await parser.end()
+                break
+              case 'text-delta':
+                fullText += event.text
+                await parser.consume(event.text)
+                break
+              case 'finish':
+                break
+              case 'error':
+                throw event.error ?? new Error('Stream error')
+            }
+          },
+        })
 
-      if (!isStaleGeneration() && buildingMessage.slices.length > 0) {
-        chatSession.appendSessionMessage(sessionId, toRaw(buildingMessage))
+        await parser.end()
+
+        if (!isStaleGeneration() && buildingMessage.slices.length > 0) {
+          chatSession.appendSessionMessage(sessionId, toRaw(buildingMessage))
+        }
+
+        await hooks.emitStreamEndHooks(streamingMessageContext)
+        await hooks.emitAssistantResponseEndHooks(fullText, streamingMessageContext)
+
+        await hooks.emitAfterSendHooks(sendingMessage, streamingMessageContext)
+        await hooks.emitAssistantMessageHooks({ ...buildingMessage }, fullText, streamingMessageContext)
+        await hooks.emitChatTurnCompleteHooks({
+          output: { ...buildingMessage },
+          outputText: fullText,
+          toolCalls: sessionMessagesForSend.filter(msg => msg.role === 'tool') as ToolMessage[],
+        }, streamingMessageContext)
+
+        if (isForegroundSession()) {
+          streamingMessage.value = { role: 'assistant', content: '', slices: [], tool_results: [] }
+        }
       }
+      catch (streamError) {
+        if (!isUserInterruptAbort(streamError))
+          throw streamError
 
-      await hooks.emitStreamEndHooks(streamingMessageContext)
-      await hooks.emitAssistantResponseEndHooks(fullText, streamingMessageContext)
+        try {
+          await parser.end()
+        }
+        catch { /* parser may reject if stream aborted mid-chunk */ }
 
-      await hooks.emitAfterSendHooks(sendingMessage, streamingMessageContext)
-      await hooks.emitAssistantMessageHooks({ ...buildingMessage }, fullText, streamingMessageContext)
-      await hooks.emitChatTurnCompleteHooks({
-        output: { ...buildingMessage },
-        outputText: fullText,
-        toolCalls: sessionMessagesForSend.filter(msg => msg.role === 'tool') as ToolMessage[],
-      }, streamingMessageContext)
+        const hadOutput = buildingMessage.slices.length > 0 || fullText.length > 0
+        if (!isStaleGeneration() && buildingMessage.slices.length > 0) {
+          buildingMessage.interrupted = true
+          chatSession.appendSessionMessage(sessionId, toRaw(buildingMessage))
+        }
+        if (hadOutput)
+          chatContext.ingestContextMessage(createUserInterruptedAssistantContext())
 
-      if (isForegroundSession()) {
-        streamingMessage.value = { role: 'assistant', content: '', slices: [], tool_results: [] }
+        await hooks.emitStreamEndHooks(streamingMessageContext)
+        await hooks.emitAssistantResponseEndHooks(fullText, streamingMessageContext)
+        await hooks.emitAfterSendHooks(sendingMessage, streamingMessageContext)
+        await hooks.emitAssistantMessageHooks({ ...buildingMessage }, fullText, streamingMessageContext)
+        await hooks.emitChatTurnCompleteHooks({
+          output: { ...buildingMessage },
+          outputText: fullText,
+          toolCalls: sessionMessagesForSend.filter(msg => msg.role === 'tool') as ToolMessage[],
+        }, streamingMessageContext)
+
+        if (isForegroundSession()) {
+          streamingMessage.value = { role: 'assistant', content: '', slices: [], tool_results: [] }
+        }
+
+        chatSession.bumpSessionGeneration(sessionId)
       }
     }
     catch (error) {
@@ -356,7 +437,28 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     }
     finally {
       sending.value = false
+      if (turnAbortForFinally && activeTurnAbortController.value === turnAbortForFinally) {
+        activeTurnAbortController.value = null
+        activeTurnBuildingMessage.value = null
+        activeTurnSessionId.value = null
+      }
     }
+  }
+
+  function applyUserTurnInterrupt(modality: UserInterruptModality, sessionId?: string) {
+    const interruptSettings = useSettingsChatInterrupt()
+    const stagePlaybackInterrupt = useStagePlaybackInterruptStore()
+    const stopPlayback = modality === 'voice'
+      ? interruptSettings.voiceInterruptStopPlayback
+      : interruptSettings.textInterruptStopPlayback
+    const abortLlm = modality === 'voice'
+      ? interruptSettings.voiceInterruptAbortLlm
+      : interruptSettings.textInterruptAbortLlm
+
+    if (stopPlayback)
+      stagePlaybackInterrupt.interruptAssistantPlayback()
+    if (abortLlm)
+      abortActiveTurn(sessionId, USER_INTERRUPT_ABORT_MESSAGE)
   }
 
   async function ingest(
@@ -365,6 +467,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     targetSessionId?: string,
   ) {
     const sessionId = targetSessionId || activeSessionId.value
+    applyUserTurnInterrupt('text', sessionId)
     const generation = chatSession.getSessionGeneration(sessionId)
 
     return new Promise<void>((resolve, reject) => {
@@ -410,12 +513,33 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       : []
   }
 
+  /**
+   * Abort the in-flight LLM stream for a session (user interrupt). Playback is stopped separately
+   * via useStagePlaybackInterruptStore when {@link applyUserTurnInterrupt} runs with stop-playback enabled.
+   * Skips abort while tool calls are waiting for results.
+   */
+  function abortActiveTurn(sessionId?: string, reason = USER_INTERRUPT_ABORT_MESSAGE) {
+    const sid = sessionId ?? activeSessionId.value
+    cancelPendingSends(sid)
+    const ctrl = activeTurnAbortController.value
+    if (!ctrl || activeTurnSessionId.value !== sid)
+      return
+    const bm = activeTurnBuildingMessage.value
+    if (bm && buildingHasPendingTools(bm)) {
+      // Conservative: aborting mid-tool can leave invalid assistant/tool message sequences for the API.
+      return
+    }
+    ctrl.abort(new DOMException(reason, 'AbortError'))
+  }
+
   return {
     sending,
 
     ingest,
     ingestOnFork,
+    applyUserTurnInterrupt,
     cancelPendingSends,
+    abortActiveTurn,
 
     clearHooks: hooks.clearHooks,
 

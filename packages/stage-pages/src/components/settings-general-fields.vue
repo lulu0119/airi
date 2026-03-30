@@ -2,8 +2,9 @@
 import { all } from '@proj-airi/i18n'
 import { useAnalytics } from '@proj-airi/stage-ui/composables/use-analytics'
 import { isPosthogAvailableInBuild } from '@proj-airi/stage-ui/stores/analytics'
-import { useSettings } from '@proj-airi/stage-ui/stores/settings'
+import { useSettings, useSettingsChatInterrupt } from '@proj-airi/stage-ui/stores/settings'
 import { FieldCheckbox, FieldCombobox, useTheme } from '@proj-airi/ui'
+import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -14,6 +15,8 @@ const props = withDefaults(defineProps<{
 })
 
 const settings = useSettings()
+const chatInterruptStore = useSettingsChatInterrupt()
+const { textInterruptStopPlayback, textInterruptAbortLlm } = storeToRefs(chatInterruptStore)
 
 const showControlsIsland = computed(() => props.needsControlsIslandIconSizeSetting)
 const showAnalyticsSettings = computed(() => isPosthogAvailableInBuild())
@@ -107,6 +110,32 @@ const languages = computed(() => {
         </div>
       </template>
     </FieldCheckbox>
+
+    <div
+      v-motion
+      :class="['flex', 'flex-col', 'gap-3', 'border-t', 'border-neutral-200', 'pt-4', 'dark:border-neutral-600']"
+      :initial="{ opacity: 0, y: 10 }"
+      :enter="{ opacity: 1, y: 0 }"
+      :duration="250 + (6 * 10)"
+      :delay="6 * 50"
+    >
+      <div class="text-sm text-neutral-700 font-medium dark:text-neutral-200">
+        {{ t('settings.pages.system.general.chat-interrupt.title') }}
+      </div>
+      <p class="text-xs text-neutral-500 dark:text-neutral-400">
+        {{ t('settings.pages.system.general.chat-interrupt.description') }}
+      </p>
+      <FieldCheckbox
+        v-model="textInterruptStopPlayback"
+        :label="t('settings.pages.system.general.chat-interrupt.stop-playback.label')"
+        :description="t('settings.pages.system.general.chat-interrupt.stop-playback.description')"
+      />
+      <FieldCheckbox
+        v-model="textInterruptAbortLlm"
+        :label="t('settings.pages.system.general.chat-interrupt.abort-llm.label')"
+        :description="t('settings.pages.system.general.chat-interrupt.abort-llm.description')"
+      />
+    </div>
 
     <slot name="additional-fields" />
 

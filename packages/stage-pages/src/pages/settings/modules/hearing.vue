@@ -7,7 +7,7 @@ import { useVAD } from '@proj-airi/stage-ui/stores/ai/models/vad'
 import { useAudioContext } from '@proj-airi/stage-ui/stores/audio'
 import { CONFIDENCE_THRESHOLD_DISABLED, useHearingSpeechInputPipeline, useHearingStore } from '@proj-airi/stage-ui/stores/modules/hearing'
 import { useProvidersStore } from '@proj-airi/stage-ui/stores/providers'
-import { useSettingsAudioDevice } from '@proj-airi/stage-ui/stores/settings'
+import { useSettingsAudioDevice, useSettingsChatInterrupt } from '@proj-airi/stage-ui/stores/settings'
 import { Button, FieldCheckbox, FieldCombobox, FieldInput, FieldRange } from '@proj-airi/ui'
 import { until } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
@@ -31,6 +31,11 @@ const {
   confidenceThreshold,
   verboseJsonNotSupported,
 } = storeToRefs(hearingStore)
+const chatInterruptStore = useSettingsChatInterrupt()
+const {
+  voiceInterruptStopPlayback,
+  voiceInterruptAbortLlm,
+} = storeToRefs(chatInterruptStore)
 const providersStore = useProvidersStore()
 const { configuredTranscriptionProvidersMetadata } = storeToRefs(providersStore)
 
@@ -681,6 +686,30 @@ onUnmounted(() => {
           <div v-if="verboseJsonNotSupported" class="mt-2 flex items-center gap-1.5 text-xs text-amber-500 dark:text-amber-400">
             <div i-solar:warning-circle-line-duotone class="shrink-0" />
             {{ t('settings.pages.modules.hearing.sections.section.confidence-threshold.verbose-json-unsupported') }}
+          </div>
+        </div>
+
+        <!-- Voice barge-in -->
+        <div class="border-t border-neutral-200 pt-4 dark:border-neutral-700">
+          <div class="mb-4">
+            <h2 class="text-lg text-neutral-500 md:text-2xl dark:text-neutral-500">
+              {{ t('settings.pages.modules.hearing.sections.section.voice-interrupt.title') }}
+            </h2>
+            <div text="neutral-400 dark:neutral-400">
+              {{ t('settings.pages.modules.hearing.sections.section.voice-interrupt.description') }}
+            </div>
+          </div>
+          <div class="space-y-4">
+            <FieldCheckbox
+              v-model="voiceInterruptStopPlayback"
+              :label="t('settings.pages.modules.hearing.sections.section.voice-interrupt.stop-playback.label')"
+              :description="t('settings.pages.modules.hearing.sections.section.voice-interrupt.stop-playback.description')"
+            />
+            <FieldCheckbox
+              v-model="voiceInterruptAbortLlm"
+              :label="t('settings.pages.modules.hearing.sections.section.voice-interrupt.abort-llm.label')"
+              :description="t('settings.pages.modules.hearing.sections.section.voice-interrupt.abort-llm.description')"
+            />
           </div>
         </div>
 

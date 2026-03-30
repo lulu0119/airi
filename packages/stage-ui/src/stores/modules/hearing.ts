@@ -14,6 +14,7 @@ import vadWorkletUrl from '../../workers/vad/process.worklet?worker&url'
 import { useProvidersStore } from '../providers'
 import { streamAliyunTranscription } from '../providers/aliyun/stream-transcription'
 import { streamWebSpeechAPITranscription } from '../providers/web-speech-api'
+import { useSettingsChatInterrupt } from '../settings/chat-interrupt'
 
 function errorMessage(err: unknown): string {
   const msg = errorMessageFrom(err) ?? String(err)
@@ -44,11 +45,12 @@ function isExpectedStreamStopError(err: unknown): boolean {
 }
 
 function haveStreamingCallbacksChanged(
-  previous: { onSentenceEnd?: (delta: string) => void, onSpeechEnd?: (text: string) => void } | undefined,
-  next: { onSentenceEnd?: (delta: string) => void, onSpeechEnd?: (text: string) => void },
+  previous: { onSentenceEnd?: (delta: string) => void, onSpeechEnd?: (text: string) => void, onSpeechStart?: () => void } | undefined,
+  next: { onSentenceEnd?: (delta: string) => void, onSpeechEnd?: (text: string) => void, onSpeechStart?: () => void },
 ): boolean {
   return (next.onSentenceEnd !== undefined && next.onSentenceEnd !== previous?.onSentenceEnd)
     || (next.onSpeechEnd !== undefined && next.onSpeechEnd !== previous?.onSpeechEnd)
+    || (next.onSpeechStart !== undefined && next.onSpeechStart !== previous?.onSpeechStart)
 }
 
 export interface StreamTranscriptionFileInputOptions extends Omit<XSAIStreamTranscriptionOptions, 'file' | 'fileName'> {
@@ -173,6 +175,7 @@ export const useHearingStore = defineStore('hearing-store', () => {
     transcriptionModelSearchQuery.reset()
     autoSendEnabled.reset()
     autoSendDelay.reset()
+    useSettingsChatInterrupt().resetVoiceInterruptSettings()
     confidenceThreshold.reset()
   }
 
@@ -307,6 +310,7 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
     callbacks?: {
       onSentenceEnd?: (delta: string) => void
       onSpeechEnd?: (text: string) => void
+      onSpeechStart?: () => void
     }
   }>()
 
@@ -491,6 +495,8 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
     idleTimeoutMs?: number
     onSentenceEnd?: (delta: string) => void
     onSpeechEnd?: (text: string) => void
+    /** User started speaking (e.g. Web Speech onspeechstart); for barge-in. */
+    onSpeechStart?: () => void
   }) {
     console.info('[Hearing Pipeline] transcribeForMediaStream called', {
       supportsStreamInput: supportsStreamInput.value,
@@ -534,6 +540,7 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
           const nextCallbacks = {
             onSentenceEnd: options?.onSentenceEnd,
             onSpeechEnd: options?.onSpeechEnd,
+            onSpeechStart: options?.onSpeechStart,
           }
           // For Web Speech API, if callbacks are provided and different, we need to restart
           // because recognition instance callbacks are set once and can't be changed
@@ -612,6 +619,7 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
             // Call the options callback
             options?.onSpeechEnd?.(text)
           },
+          onSpeechStart: options?.onSpeechStart,
         })
 
         // Store session info for cleanup
@@ -628,6 +636,7 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
           callbacks: {
             onSentenceEnd: options?.onSentenceEnd,
             onSpeechEnd: options?.onSpeechEnd,
+            onSpeechStart: options?.onSpeechStart,
           },
         } as any // Type assertion needed because recognition is extra
 
@@ -675,6 +684,7 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
         const hasNewCallbacks = haveStreamingCallbacksChanged(existingSession.callbacks, {
           onSentenceEnd: options?.onSentenceEnd,
           onSpeechEnd: options?.onSpeechEnd,
+          onSpeechStart: options?.onSpeechStart,
         })
 
         if (hasNewCallbacks) {
@@ -742,6 +752,7 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
         callbacks: {
           onSentenceEnd: options?.onSentenceEnd,
           onSpeechEnd: options?.onSpeechEnd,
+          onSpeechStart: options?.onSpeechStart,
         },
       }
 
@@ -754,6 +765,7 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
           const sessionCallbacks = {
             onSentenceEnd: streamingSession.value?.callbacks?.onSentenceEnd,
             onSpeechEnd: streamingSession.value?.callbacks?.onSpeechEnd,
+            onSpeechStart: streamingSession.value?.callbacks?.onSpeechStart,
           }
 
           let fullText = ''

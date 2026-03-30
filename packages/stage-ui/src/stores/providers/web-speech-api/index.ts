@@ -162,6 +162,8 @@ export function streamWebSpeechAPITranscription(
   options?: WebSpeechAPIExtraOptions & {
     onSentenceEnd?: (delta: string) => void
     onSpeechEnd?: (text: string) => void
+    /** Fired when the engine detects user speech (barge-in signal). */
+    onSpeechStart?: () => void
   },
 ): StreamTranscriptionResult & { recognition?: any } {
   const deferredText = createDeferred<string>()
@@ -221,6 +223,15 @@ export function streamWebSpeechAPITranscription(
     continuous: recognition.continuous,
     interimResults: recognition.interimResults,
   })
+
+  recognition.onspeechstart = () => {
+    try {
+      options?.onSpeechStart?.()
+    }
+    catch (e) {
+      console.warn('[Web Speech API] onSpeechStart callback error:', e)
+    }
+  }
 
   recognition.onresult = (event: any) => {
     let finalTranscript = ''
@@ -360,6 +371,7 @@ export function streamWebSpeechAPITranscription(
     newRecognition.onresult = sourceRecognition.onresult
     newRecognition.onerror = sourceRecognition.onerror
     newRecognition.onend = sourceRecognition.onend
+    newRecognition.onspeechstart = sourceRecognition.onspeechstart
     recognitionInstance = newRecognition
     newRecognition.start()
     return newRecognition

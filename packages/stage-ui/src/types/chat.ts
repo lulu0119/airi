@@ -29,6 +29,8 @@ export interface ChatAssistantMessage extends AssistantMessage {
     speech: string
     reasoning: string
   }
+  /** Present when the user interrupted the turn (voice or text) before the model finished. */
+  interrupted?: boolean
 }
 
 export type ChatMessage = ChatAssistantMessage | SystemMessage | ToolMessage | UserMessage

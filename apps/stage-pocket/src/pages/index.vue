@@ -12,6 +12,7 @@ import { useBackgroundThemeColor } from '@proj-airi/stage-layouts/composables/th
 import { useBackgroundStore } from '@proj-airi/stage-layouts/stores/background'
 import { WidgetStage } from '@proj-airi/stage-ui/components/scenes'
 import { useAudioRecorder } from '@proj-airi/stage-ui/composables/audio/audio-recorder'
+import { useChatTurnInterrupt } from '@proj-airi/stage-ui/composables/use-chat-turn-interrupt'
 import { useVAD } from '@proj-airi/stage-ui/stores/ai/models/vad'
 import { useChatOrchestratorStore } from '@proj-airi/stage-ui/stores/chat'
 import { useLive2d } from '@proj-airi/stage-ui/stores/live2d'
@@ -52,6 +53,7 @@ const providersStore = useProvidersStore()
 const consciousnessStore = useConsciousnessStore()
 const { activeProvider: activeChatProvider, activeModel: activeChatModel } = storeToRefs(consciousnessStore)
 const chatStore = useChatOrchestratorStore()
+const { notifyVoiceActivityStart } = useChatTurnInterrupt()
 
 const shouldUseStreamInput = computed(() => supportsStreamInput.value && !!stream.value)
 
@@ -98,10 +100,12 @@ async function startAudioInteraction() {
 }
 
 async function handleSpeechStart() {
+  notifyVoiceActivityStart()
   if (shouldUseStreamInput.value && stream.value) {
     // Use both callbacks to support incremental updates and final transcript replacement.
     // ChatArea uses only onSentenceEnd to avoid re-adding deleted text.
     await transcribeForMediaStream(stream.value, {
+      onSpeechStart: notifyVoiceActivityStart,
       onSentenceEnd: (delta) => {
         const finalText = delta
         if (!finalText || !finalText.trim()) {

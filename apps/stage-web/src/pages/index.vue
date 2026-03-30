@@ -12,6 +12,7 @@ import { useBackgroundThemeColor } from '@proj-airi/stage-layouts/composables/th
 import { useBackgroundStore } from '@proj-airi/stage-layouts/stores/background'
 import { WidgetStage } from '@proj-airi/stage-ui/components/scenes'
 import { useAudioRecorder } from '@proj-airi/stage-ui/composables/audio/audio-recorder'
+import { useChatTurnInterrupt } from '@proj-airi/stage-ui/composables/use-chat-turn-interrupt'
 import { useVAD } from '@proj-airi/stage-ui/stores/ai/models/vad'
 import { useChatOrchestratorStore } from '@proj-airi/stage-ui/stores/chat'
 import { useLive2d } from '@proj-airi/stage-ui/stores/live2d'
@@ -52,6 +53,7 @@ const providersStore = useProvidersStore()
 const consciousnessStore = useConsciousnessStore()
 const { activeProvider: activeChatProvider, activeModel: activeChatModel } = storeToRefs(consciousnessStore)
 const chatStore = useChatOrchestratorStore()
+const { notifyVoiceActivityStart } = useChatTurnInterrupt()
 
 const shouldUseStreamInput = computed(() => supportsStreamInput.value && !!stream.value)
 
@@ -98,6 +100,7 @@ async function startAudioInteraction() {
 }
 
 async function handleSpeechStart() {
+  notifyVoiceActivityStart()
   // For streaming providers, ChatArea component handles transcription manually
   // The main page should not start automatic transcription to avoid duplicate sessions
   if (shouldUseStreamInput.value) {

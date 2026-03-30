@@ -4,6 +4,7 @@ import type { ChatProvider } from '@xsai-ext/providers/utils'
 import { errorMessageFrom } from '@moeru/std'
 import { isStageTamagotchi } from '@proj-airi/stage-shared'
 import { useAudioAnalyzer } from '@proj-airi/stage-ui/composables'
+import { useChatTurnInterrupt } from '@proj-airi/stage-ui/composables/use-chat-turn-interrupt'
 import { useAudioContext } from '@proj-airi/stage-ui/stores/audio'
 import { useChatOrchestratorStore } from '@proj-airi/stage-ui/stores/chat'
 import { useChatSessionStore } from '@proj-airi/stage-ui/stores/chat/session-store'
@@ -55,6 +56,7 @@ const hearingPipeline = useHearingSpeechInputPipeline()
 const { transcribeForMediaStream, stopStreamingTranscription } = hearingPipeline
 const { supportsStreamInput } = storeToRefs(hearingPipeline)
 const { configured: hearingConfigured, autoSendEnabled, autoSendDelay } = storeToRefs(hearingStore)
+const { notifyVoiceActivityStart } = useChatTurnInterrupt()
 const shouldUseStreamInput = computed(() => supportsStreamInput.value && !!stream.value)
 
 // Auto-send logic
@@ -339,6 +341,7 @@ async function startListening() {
     // Set listening state AFTER successful call
     try {
       await transcribeForMediaStream(stream.value, {
+        onSpeechStart: notifyVoiceActivityStart,
         onSentenceEnd: (delta) => {
           if (delta && delta.trim()) {
             // Append transcribed text to message input

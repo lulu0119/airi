@@ -23,6 +23,7 @@ import {
 import { WidgetStage } from '@proj-airi/stage-ui/components/scenes'
 import { useAudioRecorder } from '@proj-airi/stage-ui/composables/audio/audio-recorder'
 import { useCanvasPixelIsTransparentAtPoint } from '@proj-airi/stage-ui/composables/canvas-alpha'
+import { useChatTurnInterrupt } from '@proj-airi/stage-ui/composables/use-chat-turn-interrupt'
 import { useVAD } from '@proj-airi/stage-ui/stores/ai/models/vad'
 import { useChatOrchestratorStore } from '@proj-airi/stage-ui/stores/chat'
 import { useLive2d } from '@proj-airi/stage-ui/stores/live2d'
@@ -227,6 +228,7 @@ const providersStore = useProvidersStore()
 const consciousnessStore = useConsciousnessStore()
 const { activeProvider: activeChatProvider, activeModel: activeChatModel } = storeToRefs(consciousnessStore)
 const chatStore = useChatOrchestratorStore()
+const { notifyVoiceActivityStart } = useChatTurnInterrupt()
 const shouldUseStreamInput = computed(() => supportsStreamInput.value && !!stream.value)
 
 const { init: initVAD, dispose: disposeVAD, start: startVAD, loaded: vadLoaded } = useVAD(workletUrl, {
@@ -280,6 +282,7 @@ function handleStreamingSpeechEnd(text: string) {
 }
 
 async function handleSpeechStart() {
+  notifyVoiceActivityStart()
   if (shouldUseStreamInput.value) {
     console.info('Speech detected - transcription session should already be active')
     return
@@ -336,6 +339,7 @@ async function startAudioInteraction() {
 
       // Use sentence deltas for live captions and speech end for final text.
       await transcribeForMediaStream(stream.value, {
+        onSpeechStart: notifyVoiceActivityStart,
         onSentenceEnd: handleStreamingSentenceEnd,
         onSpeechEnd: handleStreamingSpeechEnd,
       })

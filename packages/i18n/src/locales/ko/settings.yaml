@@ -396,6 +396,19 @@ pages:
               Note: If your provider does not support verbose_json responses, this setting will have no effect.
             verbose-json-unsupported: >-
               Your provider did not return verbose_json segments. Confidence filtering had no effect on the last transcription.
+          voice-interrupt:
+            title: 음성 끼어들기
+            description: >-
+              어시스턴트가 답하는 중에 말을 시작하면 재생을 멈추고 필요 시 현재 모델 생성을 중단할 수 있습니다.
+              텍스트 전송 동작은 「시스템 → 일반」에서 따로 설정합니다.
+            stop-playback:
+              label: 말을 시작하면 어시스턴트 음성 멈추기
+              description: TTS 재생을 중지하고 대기 중인 감정/지연 큐를 비워 스테이지를 맞춥니다.
+            abort-llm:
+              label: 말을 시작하면 현재 답변 생성 중단하기
+              description: >-
+                진행 중인 LLM 스트림을 취소하고 미완성 어시스턴트 메시지를 중단됨으로 저장합니다
+                (도구 호출 결과 대기 중에는 건너뜁니다).
     memory-long-term:
       description: 장기 메모리 관련 설정 및 관리
       title: 장기 메모리
@@ -887,6 +900,19 @@ pages:
     general:
       description: 어두운 테마, 언어 등.
       title: 일반
+      chat-interrupt:
+        title: 채팅 메시지를 보낼 때
+        description: >-
+          어시스턴트가 답변 중일 때 새 메시지를내면 재생을 멈추고 필요 시 현재 모델 생성을 중단할 수 있습니다
+          (음성 끼어들기와 같은 개념으로, 입력 또는 파이프에도 적용됩니다).
+        stop-playback:
+          label: 메시지를 보낼 때 어시스턴트 음성 멈추기
+          description: TTS 재생을 중지하고 대기 중인 감정/지연 큐를 비워 스테이지를 맞춥니다.
+        abort-llm:
+          label: 메시지를 보낼 때 현재 답변 생성 중단하기
+          description: >-
+            진행 중인 LLM 스트림을 취소하고 미완성 어시스턴트 메시지를 중단됨으로 저장합니다
+            (도구 호출 결과 대기 중에는 건너뜁니다).
     description: 무대를 커스터마이징하세요!
     sections:
       section:

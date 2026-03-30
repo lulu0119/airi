@@ -1,6 +1,7 @@
 import { defineStore, storeToRefs } from 'pinia'
 
 import { useSettingsAnalytics } from './analytics'
+import { useSettingsChatInterrupt } from './chat-interrupt'
 import { useSettingsControlsIsland } from './controls-island'
 import { useSettingsGeneral } from './general'
 import { useSettingsLive2d } from './live2d'
@@ -11,6 +12,7 @@ export * from './analytics'
 // Export sub-stores
 export * from './audio-device'
 export * from './beat-sync'
+export * from './chat-interrupt'
 export * from './controls-island'
 export * from './general'
 export * from './live2d'
@@ -33,6 +35,7 @@ export const useSettings = defineStore('settings', () => {
   const live2d = useSettingsLive2d()
   const theme = useSettingsTheme()
   const controlsIsland = useSettingsControlsIsland()
+  const chatInterrupt = useSettingsChatInterrupt()
 
   async function resetState() {
     await stageModel.resetState()
@@ -41,6 +44,7 @@ export const useSettings = defineStore('settings', () => {
     live2d.resetState()
     theme.resetState()
     controlsIsland.resetState()
+    chatInterrupt.resetState()
   }
 
   // Extract refs from sub-stores to maintain proper reactivity

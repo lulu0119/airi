@@ -396,6 +396,19 @@ pages:
               Note: If your provider does not support verbose_json responses, this setting will have no effect.
             verbose-json-unsupported: >-
               Your provider did not return verbose_json segments. Confidence filtering had no effect on the last transcription.
+          voice-interrupt:
+            title: 音声バージイン
+            description: >-
+              アシスタントが返答中に話し始めたとき、再生を止め、必要に応じて現在のモデル生成を中断できます。
+              テキスト送信時の動作は「システム → 一般」で別途設定します。
+            stop-playback:
+              label: 話し始めたらアシスタントの音声を止める
+              description: TTS 再生を停止し、保留中の感情・遅延キューをクリアしてステージを同期します。
+            abort-llm:
+              label: 話し始めたら現在の返答生成を中断する
+              description: >-
+                進行中の LLM ストリームを取り消し、不完全なアシスタントメッセージを中断済みとして保存します
+                （ツール呼び出し結果待ちの間はスキップされます）。
     memory-long-term:
       description: 長期記憶固有の設定と管理
       title: 長期記憶
@@ -887,6 +900,19 @@ pages:
     general:
       description: ダークテーマ、言語など。
       title: 一般
+      chat-interrupt:
+        title: チャットメッセージを送るとき
+        description: >-
+          アシスタントが返答中に新しいメッセージを送ると、再生を止め、必要に応じて現在のモデル生成を中断できます
+          （音声バージインと同様の考え方で、入力やパイプ経由にも適用されます）。
+        stop-playback:
+          label: メッセージ送信時にアシスタントの音声を止める
+          description: TTS 再生を停止し、保留中の感情・遅延キューをクリアしてステージを同期します。
+        abort-llm:
+          label: メッセージ送信時に現在の返答生成を中断する
+          description: >-
+            進行中の LLM ストリームを取り消し、不完全なアシスタントメッセージを中断済みとして保存します
+            （ツール呼び出し結果待ちの間はスキップされます）。
     description: ステージをカスタマイズしよう！
     sections:
       section:

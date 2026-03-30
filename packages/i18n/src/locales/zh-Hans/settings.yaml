@@ -396,6 +396,19 @@ pages:
               Note: If your provider does not support verbose_json responses, this setting will have no effect.
             verbose-json-unsupported: >-
               Your provider did not return verbose_json segments. Confidence filtering had no effect on the last transcription.
+          voice-interrupt:
+            title: 语音打断（插话）
+            description: >-
+              在助手正在回复时，你开始说话可以停止播报并可选中止当前模型生成。
+              通过键盘发送消息时的行为请在「系统 → 通用」中单独设置。
+            stop-playback:
+              label: 我开始说话时停止助手语音
+              description: 停止 TTS 播放并清空待处理的情绪/延迟队列，使舞台与口型保持同步。
+            abort-llm:
+              label: 我开始说话时中止当前回复生成
+              description: >-
+                取消进行中的 LLM 流式输出，并将不完整助手消息标记为已打断
+                （正在等待工具调用结果时不会中止）。
     memory-long-term:
       description: 长期记忆
       title: 长期记忆
@@ -887,6 +900,19 @@ pages:
     general:
       description: 深色主题、语言等选项
       title: 通用
+      chat-interrupt:
+        title: 发送聊天消息时
+        description: >-
+          在助手正在回复时，发送新消息可以停止播报并可选中止当前模型生成
+          （与语音打断思路相同，适用于键盘输入或管道消息）。
+        stop-playback:
+          label: 我发送消息时停止助手语音
+          description: 停止 TTS 播放并清空待处理的情绪/延迟队列，使舞台与口型保持同步。
+        abort-llm:
+          label: 我发送消息时中止当前回复生成
+          description: >-
+            取消进行中的 LLM 流式输出，并将不完整助手消息标记为已打断
+            （正在等待工具调用结果时不会中止）。
     description: 自定义你的舞台外观！
     sections:
       section:

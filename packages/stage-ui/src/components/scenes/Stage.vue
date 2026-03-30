@@ -35,6 +35,7 @@ import { useSpeechStore } from '../../stores/modules/speech'
 import { useProvidersStore } from '../../stores/providers'
 import { useSettings } from '../../stores/settings'
 import { useSpeechRuntimeStore } from '../../stores/speech-runtime'
+import { useStagePlaybackInterruptStore } from '../../stores/stage-playback-interrupt'
 import { shouldRunLive2dLipSyncLoop } from './runtime'
 
 const props = withDefaults(defineProps<{
@@ -116,6 +117,7 @@ const speechStore = useSpeechStore()
 const { ssmlEnabled, activeSpeechProvider, activeSpeechModel, activeSpeechVoice, pitch } = storeToRefs(speechStore)
 const activeCardId = computed(() => activeCard.value?.name ?? 'default')
 const speechRuntimeStore = useSpeechRuntimeStore()
+const stagePlaybackInterruptStore = useStagePlaybackInterruptStore()
 
 const { currentMotion } = storeToRefs(useLive2d())
 
@@ -436,6 +438,34 @@ function setupAnalyser() {
   }
 }
 
+function resetAssistantCaptionPresent() {
+  assistantCaption.value = ''
+  try {
+    postCaption({ type: 'caption-assistant', text: '' })
+  }
+  catch (error) {
+    console.warn('[Stage] Failed to post caption reset (channel may be closed)', { error })
+  }
+  try {
+    postPresent({ type: 'assistant-reset' })
+  }
+  catch (error) {
+    console.warn('[Stage] Failed to post present reset (channel may be closed)', { error })
+  }
+}
+
+/** Stops TTS playback and clears emotion/delay queues; used for user interrupt and registered globally. */
+function interruptAssistantPlaybackOnStage() {
+  playbackManager.stopAll('user-interrupt')
+  emotionMessageContentQueue.clear()
+  delaysQueue.clear()
+  emotionsQueue.clear()
+  resetAssistantCaptionPresent()
+  nowSpeaking.value = false
+  mouthOpenSize.value = 0
+  currentChatIntent?.cancel('user-interrupt')
+}
+
 let currentChatIntent: ReturnType<typeof speechRuntimeStore.openIntent> | null = null
 
 chatHookCleanups.push(onBeforeMessageComposed(async () => {
@@ -443,22 +473,7 @@ chatHookCleanups.push(onBeforeMessageComposed(async () => {
 
   setupAnalyser()
   await setupLipSync()
-  // Reset assistant caption for a new message
-  assistantCaption.value = ''
-  try {
-    postCaption({ type: 'caption-assistant', text: '' })
-  }
-  catch (error) {
-    // BroadcastChannel may be closed if user navigated away - don't break flow
-    console.warn('[Stage] Failed to post caption reset (channel may be closed)', { error })
-  }
-  try {
-    postPresent({ type: 'assistant-reset' })
-  }
-  catch (error) {
-    // BroadcastChannel may be closed if user navigated away - don't break flow
-    console.warn('[Stage] Failed to post present reset (channel may be closed)', { error })
-  }
+  resetAssistantCaptionPresent()
 
   if (currentChatIntent) {
     currentChatIntent.cancel('new-message')
@@ -521,6 +536,7 @@ if (typeof window !== 'undefined') {
 }
 
 onMounted(async () => {
+  stagePlaybackInterruptStore.register(interruptAssistantPlaybackOnStage)
   db.value = drizzle({ connection: { bundles: getImportUrlBundles() } })
   await db.value.execute(`CREATE TABLE memory_test (vec FLOAT[768]);`)
 })
@@ -550,6 +566,7 @@ function readRenderTargetRegionAtClientPoint(clientX: number, clientY: number, r
 }
 
 onUnmounted(() => {
+  stagePlaybackInterruptStore.unregister()
   resetLive2dLipSync()
   chatHookCleanups.forEach(dispose => dispose?.())
   viewUpdateCleanups.forEach(dispose => dispose?.())
