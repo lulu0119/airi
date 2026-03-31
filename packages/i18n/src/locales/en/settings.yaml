@@ -412,20 +412,6 @@ pages:
               Note: If your provider does not support verbose_json responses, this setting will have no effect.
             verbose-json-unsupported: >-
               Your provider did not return verbose_json segments. Confidence filtering had no effect on the last transcription.
-          voice-interrupt:
-            title: Voice barge-in
-            description: >-
-              When you start speaking while the assistant is replying, stop playback and optionally abort the current model turn.
-              Text sends use separate options under General settings.
-            stop-playback:
-              label: Stop assistant speech when I start talking
-              description: >-
-                Stops TTS playback and clears pending emotion/delay cues so the stage stays in sync.
-            abort-llm:
-              label: Abort current reply generation when I start talking
-              description: >-
-                Cancels the in-flight LLM stream and saves a partial assistant message as interrupted
-                (skipped while a tool call is waiting for results).
     memory-long-term:
       description: Long-term memory specific settings and management
       title: Long-Term Memory
@@ -936,20 +922,12 @@ pages:
     general:
       description: Dark theme, languages, etc.
       title: General
-      chat-interrupt:
-        title: When sending a chat message
-        description: >-
-          While the assistant is replying, a new message can stop playback and optionally abort the current model turn
-          (same idea as voice barge-in, for typed or piped input).
-        stop-playback:
-          label: Stop assistant speech when I send a message
-          description: >-
-            Stops TTS playback and clears pending emotion/delay cues so the stage stays in sync.
-        abort-llm:
-          label: Abort current reply generation when I send a message
-          description: >-
-            Cancels the in-flight LLM stream and saves a partial assistant message as interrupted
-            (skipped while a tool call is waiting for results).
+      voice-reply-interrupt:
+        label: Voice interruption
+        description: Stops AIRI if you speak during a reply.
+      message-reply-interrupt:
+        label: Message interruption
+        description: Stops AIRI if you send a message during a reply.
     description: Customize your stage!
     sections:
       section:

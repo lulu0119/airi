@@ -447,18 +447,15 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
   function applyUserTurnInterrupt(modality: UserInterruptModality, sessionId?: string) {
     const interruptSettings = useSettingsChatInterrupt()
-    const stagePlaybackInterrupt = useStagePlaybackInterruptStore()
-    const stopPlayback = modality === 'voice'
-      ? interruptSettings.voiceInterruptStopPlayback
-      : interruptSettings.textInterruptStopPlayback
-    const abortLlm = modality === 'voice'
-      ? interruptSettings.voiceInterruptAbortLlm
-      : interruptSettings.textInterruptAbortLlm
+    const enabled = modality === 'voice'
+      ? interruptSettings.voiceReplyInterrupt
+      : interruptSettings.messageReplyInterrupt
+    if (!enabled)
+      return
 
-    if (stopPlayback)
-      stagePlaybackInterrupt.interruptAssistantPlayback()
-    if (abortLlm)
-      abortActiveTurn(sessionId, USER_INTERRUPT_ABORT_MESSAGE)
+    const stagePlaybackInterrupt = useStagePlaybackInterruptStore()
+    stagePlaybackInterrupt.interruptAssistantPlayback()
+    abortActiveTurn(sessionId, USER_INTERRUPT_ABORT_MESSAGE)
   }
 
   async function ingest(

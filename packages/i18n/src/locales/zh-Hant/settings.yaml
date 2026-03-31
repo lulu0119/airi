@@ -396,19 +396,6 @@ pages:
               Note: If your provider does not support verbose_json responses, this setting will have no effect.
             verbose-json-unsupported: >-
               Your provider did not return verbose_json segments. Confidence filtering had no effect on the last transcription.
-          voice-interrupt:
-            title: 語音打斷（插話）
-            description: >-
-              在助理正在回覆時，你開始說話可以停止播報並可選中止目前模型生成。
-              透過鍵盤傳送訊息時的行為請在「系統 → 通用」中另外設定。
-            stop-playback:
-              label: 我開始說話時停止助理語音
-              description: 停止 TTS 播放並清空待處理的情緒/延遲佇列，使舞台與口型保持同步。
-            abort-llm:
-              label: 我開始說話時中止目前回覆生成
-              description: >-
-                取消進行中的 LLM 串流輸出，並將不完整助理訊息標記為已打斷
-                （正在等待工具呼叫結果時不會中止）。
     memory-long-term:
       description: 長期記憶
       title: 長期記憶
@@ -900,19 +887,12 @@ pages:
     general:
       description: 深色主題、語言等選項
       title: 通用
-      chat-interrupt:
-        title: 傳送聊天訊息時
-        description: >-
-          在助理正在回覆時，傳送新訊息可以停止播報並可選中止目前模型生成
-          （與語音打斷思路相同，適用於鍵盤輸入或管道訊息）。
-        stop-playback:
-          label: 我傳送訊息時停止助理語音
-          description: 停止 TTS 播放並清空待處理的情緒/延遲佇列，使舞台與口型保持同步。
-        abort-llm:
-          label: 我傳送訊息時中止目前回覆生成
-          description: >-
-            取消進行中的 LLM 串流輸出，並將不完整助理訊息標記為已打斷
-            （正在等待工具呼叫結果時不會中止）。
+      voice-reply-interrupt:
+        label: 語音打斷
+        description: AIRI 正在回覆時，若你開始說話則停止播報並中止其生成。
+      message-reply-interrupt:
+        label: 訊息打斷
+        description: AIRI 正在回覆時，若你傳送訊息則停止播報並中止其生成。
     description: 自訂你的舞台外觀！
     sections:
       section:

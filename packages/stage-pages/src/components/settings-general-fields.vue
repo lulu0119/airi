@@ -16,7 +16,7 @@ const props = withDefaults(defineProps<{
 
 const settings = useSettings()
 const chatInterruptStore = useSettingsChatInterrupt()
-const { textInterruptStopPlayback, textInterruptAbortLlm } = storeToRefs(chatInterruptStore)
+const { voiceReplyInterrupt, messageReplyInterrupt } = storeToRefs(chatInterruptStore)
 
 const showControlsIsland = computed(() => props.needsControlsIslandIconSizeSetting)
 const showAnalyticsSettings = computed(() => isPosthogAvailableInBuild())
@@ -111,31 +111,27 @@ const languages = computed(() => {
       </template>
     </FieldCheckbox>
 
-    <div
+    <FieldCheckbox
+      v-model="voiceReplyInterrupt"
       v-motion
-      :class="['flex', 'flex-col', 'gap-3', 'border-t', 'border-neutral-200', 'pt-4', 'dark:border-neutral-600']"
       :initial="{ opacity: 0, y: 10 }"
       :enter="{ opacity: 1, y: 0 }"
       :duration="250 + (6 * 10)"
       :delay="6 * 50"
-    >
-      <div class="text-sm text-neutral-700 font-medium dark:text-neutral-200">
-        {{ t('settings.pages.system.general.chat-interrupt.title') }}
-      </div>
-      <p class="text-xs text-neutral-500 dark:text-neutral-400">
-        {{ t('settings.pages.system.general.chat-interrupt.description') }}
-      </p>
-      <FieldCheckbox
-        v-model="textInterruptStopPlayback"
-        :label="t('settings.pages.system.general.chat-interrupt.stop-playback.label')"
-        :description="t('settings.pages.system.general.chat-interrupt.stop-playback.description')"
-      />
-      <FieldCheckbox
-        v-model="textInterruptAbortLlm"
-        :label="t('settings.pages.system.general.chat-interrupt.abort-llm.label')"
-        :description="t('settings.pages.system.general.chat-interrupt.abort-llm.description')"
-      />
-    </div>
+      :label="t('settings.pages.system.general.voice-reply-interrupt.label')"
+      :description="t('settings.pages.system.general.voice-reply-interrupt.description')"
+    />
+
+    <FieldCheckbox
+      v-model="messageReplyInterrupt"
+      v-motion
+      :initial="{ opacity: 0, y: 10 }"
+      :enter="{ opacity: 1, y: 0 }"
+      :duration="250 + (7 * 10)"
+      :delay="7 * 50"
+      :label="t('settings.pages.system.general.message-reply-interrupt.label')"
+      :description="t('settings.pages.system.general.message-reply-interrupt.description')"
+    />
 
     <slot name="additional-fields" />
 

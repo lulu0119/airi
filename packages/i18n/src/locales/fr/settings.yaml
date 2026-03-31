@@ -396,20 +396,6 @@ pages:
               Note: If your provider does not support verbose_json responses, this setting will have no effect.
             verbose-json-unsupported: >-
               Your provider did not return verbose_json segments. Confidence filtering had no effect on the last transcription.
-          voice-interrupt:
-            title: Interruption vocale (barge-in)
-            description: >-
-              Lorsque l’assistant répond, commencer à parler peut arrêter la lecture et, en option, interrompre la génération en cours.
-              L’envoi de messages texte se configure séparément dans Système → Général.
-            stop-playback:
-              label: Arrêter la voix de l’assistant quand je commence à parler
-              description: >-
-                Arrête la synthèse vocale et vide les files d’émotions et de délais en attente pour garder la scène synchronisée.
-            abort-llm:
-              label: Interrompre la génération de réponse quand je commence à parler
-              description: >-
-                Annule le flux LLM en cours et enregistre un message assistant partiel comme interrompu
-                (ignoré pendant l’attente des résultats d’un appel d’outil).
     memory-long-term:
       description: Paramètres et gestion de la mémoire à long terme
       title: Mémoire à long terme
@@ -901,20 +887,12 @@ pages:
     general:
       description: Thème sombre, langues, etc.
       title: Général
-      chat-interrupt:
-        title: Lors de l’envoi d’un message de chat
-        description: >-
-          Pendant que l’assistant répond, un nouveau message peut arrêter la lecture et, en option, interrompre la génération en cours
-          (même principe que l’interruption vocale, pour la saisie ou les entrées reliées).
-        stop-playback:
-          label: Arrêter la voix de l’assistant quand j’envoie un message
-          description: >-
-            Arrête la synthèse vocale et vide les files d’émotions et de délais en attente pour garder la scène synchronisée.
-        abort-llm:
-          label: Interrompre la génération de réponse quand j’envoie un message
-          description: >-
-            Annule le flux LLM en cours et enregistre un message assistant partiel comme interrompu
-            (ignoré pendant l’attente des résultats d’un appel d’outil).
+      voice-reply-interrupt:
+        label: Interruption vocale
+        description: Arrête AIRI si vous parlez pendant que AIRI répond.
+      message-reply-interrupt:
+        label: Interruption par message
+        description: Arrête AIRI si vous envoyez un message pendant que AIRI répond.
     description: Personnalisez votre scène !
     sections:
       section:

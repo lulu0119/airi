@@ -14,7 +14,6 @@ import vadWorkletUrl from '../../workers/vad/process.worklet?worker&url'
 import { useProvidersStore } from '../providers'
 import { streamAliyunTranscription } from '../providers/aliyun/stream-transcription'
 import { streamWebSpeechAPITranscription } from '../providers/web-speech-api'
-import { useSettingsChatInterrupt } from '../settings/chat-interrupt'
 
 function errorMessage(err: unknown): string {
   const msg = errorMessageFrom(err) ?? String(err)
@@ -175,7 +174,6 @@ export const useHearingStore = defineStore('hearing-store', () => {
     transcriptionModelSearchQuery.reset()
     autoSendEnabled.reset()
     autoSendDelay.reset()
-    useSettingsChatInterrupt().resetVoiceInterruptSettings()
     confidenceThreshold.reset()
   }
 

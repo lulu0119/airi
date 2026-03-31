@@ -396,20 +396,6 @@ pages:
               Note: If your provider does not support verbose_json responses, this setting will have no effect.
             verbose-json-unsupported: >-
               Your provider did not return verbose_json segments. Confidence filtering had no effect on the last transcription.
-          voice-interrupt:
-            title: Chen ngang bằng giọng nói
-            description: >-
-              Khi trợ lý đang trả lời, bạn bắt đầu nói có thể dừng phát và tùy chọn hủy lượt tạo hiện tại.
-              Gửi tin nhắn văn bản được cấu hình riêng trong Hệ thống → Chung.
-            stop-playback:
-              label: Dừng giọng trợ lý khi tôi bắt đầu nói
-              description: >-
-                Dừng TTS và xóa hàng đợi cảm xúc/độ trễ đang chờ để sân khấu đồng bộ.
-            abort-llm:
-              label: Hủy tạo phản hồi hiện tại khi tôi bắt đầu nói
-              description: >-
-                Hủy luồng LLM đang chạy và lưu tin nhắn trợ lý dở dang là bị ngắt
-                (bỏ qua khi đang chờ kết quả gọi công cụ).
     memory-long-term:
       description: Cài đặt và quản lý trí nhớ dài hạn
       title: Trí nhớ dài hạn
@@ -901,20 +887,12 @@ pages:
     general:
       description: Chế độ tối, ngôn ngữ, v.v.
       title: Chung
-      chat-interrupt:
-        title: Khi gửi tin nhắn trò chuyện
-        description: >-
-          Trong khi trợ lý đang trả lời, tin nhắn mới có thể dừng phát và tùy chọn hủy lượt tạo hiện tại
-          (cùng ý tưởng với chen ngang giọng nói, áp dụng cho gõ phím hoặc luồng đưa vào).
-        stop-playback:
-          label: Dừng giọng trợ lý khi tôi gửi tin nhắn
-          description: >-
-            Dừng TTS và xóa hàng đợi cảm xúc/độ trễ đang chờ để sân khấu đồng bộ.
-        abort-llm:
-          label: Hủy tạo phản hồi hiện tại khi tôi gửi tin nhắn
-          description: >-
-            Hủy luồng LLM đang chạy và lưu tin nhắn trợ lý dở dang là bị ngắt
-            (bỏ qua khi đang chờ kết quả gọi công cụ).
+      voice-reply-interrupt:
+        label: Ngắt bằng giọng nói
+        description: Dừng AIRI nếu bạn nói trong lúc AIRI đang trả lời.
+      message-reply-interrupt:
+        label: Ngắt bằng tin nhắn
+        description: Dừng AIRI nếu bạn gửi tin nhắn trong lúc AIRI đang trả lời.
     description: Tùy chỉnh thiết lập bối cảnh của bạn!
     sections:
       section:

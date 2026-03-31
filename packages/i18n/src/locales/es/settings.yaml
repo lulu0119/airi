@@ -396,20 +396,6 @@ pages:
               Note: If your provider does not support verbose_json responses, this setting will have no effect.
             verbose-json-unsupported: >-
               Your provider did not return verbose_json segments. Confidence filtering had no effect on the last transcription.
-          voice-interrupt:
-            title: Interrupción de voz (barge-in)
-            description: >-
-              Si empiezas a hablar mientras el asistente responde, puedes detener la reproducción y, opcionalmente, abortar la generación actual.
-              El envío de mensajes de texto se configura por separado en Sistema → General.
-            stop-playback:
-              label: Detener la voz del asistente cuando empiezo a hablar
-              description: >-
-                Detiene la síntesis de voz y vacía las colas de emoción y retraso pendientes para mantener el escenario sincronizado.
-            abort-llm:
-              label: Abortar la generación de respuesta cuando empiezo a hablar
-              description: >-
-                Cancela el flujo LLM en curso y guarda un mensaje del asistente parcial como interrumpido
-                (omitido mientras se esperan resultados de una llamada a herramienta).
     memory-long-term:
       description: Configuraciones específicas y gestión de memoria a largo plazo
       title: Memoria a Largo Plazo
@@ -901,20 +887,12 @@ pages:
     general:
       description: Tema oscuro, idiomas, etc.
       title: General
-      chat-interrupt:
-        title: Al enviar un mensaje de chat
-        description: >-
-          Mientras el asistente responde, un mensaje nuevo puede detener la reproducción y, opcionalmente, abortar la generación actual
-          (misma idea que la interrupción de voz, para texto o entradas canalizadas).
-        stop-playback:
-          label: Detener la voz del asistente cuando envío un mensaje
-          description: >-
-            Detiene la síntesis de voz y vacía las colas de emoción y retraso pendientes para mantener el escenario sincronizado.
-        abort-llm:
-          label: Abortar la generación de respuesta cuando envío un mensaje
-          description: >-
-            Cancela el flujo LLM en curso y guarda un mensaje del asistente parcial como interrumpido
-            (omitido mientras se esperan resultados de una llamada a herramienta).
+      voice-reply-interrupt:
+        label: Interrupción por voz
+        description: Detiene a AIRI si hablas mientras responde.
+      message-reply-interrupt:
+        label: Interrupción por mensaje
+        description: Detiene a AIRI si envías un mensaje mientras responde.
     description: '¡Personaliza tu escenario!'
     sections:
       section:
