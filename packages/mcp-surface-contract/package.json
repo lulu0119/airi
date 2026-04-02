@@ -1,0 +1,39 @@
+{
+  "name": "@proj-airi/mcp-surface-contract",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "proj-airi Surface envelope for MCP tool structuredContent (embedUrl v1)",
+  "author": {
+    "name": "Moeru AI Project AIRI Team",
+    "email": "airi@moeru.ai",
+    "url": "https://github.com/moeru-ai"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moeru-ai/airi.git",
+    "directory": "packages/mcp-surface-contract"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    },
+    "./schema/proj-airi-surface-v1.json": "./schema/proj-airi-surface-v1.json"
+  },
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "files": [
+    "README.md",
+    "dist",
+    "package.json",
+    "schema"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:"
+  }
+}

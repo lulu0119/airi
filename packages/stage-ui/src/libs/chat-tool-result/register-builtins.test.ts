@@ -10,33 +10,45 @@ describe('registerBuiltInChatToolResultRenderers', () => {
     registerBuiltInChatToolResultRenderers()
   })
 
-  it('matches excalidraw.com json share URL in text content', () => {
+  it('matches projAiriSurface embedUrl in structuredContent', () => {
     clearChatToolResultRenderersForTests()
     registerBuiltInChatToolResultRenderers()
 
-    const url = 'https://excalidraw.com/#json=abc,key'
     const ctx = {
       toolCallId: 't1',
-      mcpQualifiedToolName: 'excalidraw::export_to_excalidraw',
+      mcpQualifiedToolName: 'demo::any_tool',
       normalized: normalizeToolResult({
-        content: [{ type: 'text', text: `Done.\n${url}` }],
+        content: [{ type: 'text', text: 'ok' }],
+        structuredContent: {
+          projAiriSurface: {
+            version: 1,
+            kind: 'embedUrl',
+            title: 'Preview',
+            data: { url: 'https://example.com/embed' },
+          },
+        },
       }),
     }
-    expect(resolveChatToolResultRenderer(ctx)?.id).toBe('excalidraw-json-url')
+    expect(resolveChatToolResultRenderer(ctx)?.id).toBe('proj-airi-surface-embed-url')
   })
 
-  it('matches create_view checkpoint notice', () => {
+  it('does not match non-http URL', () => {
     clearChatToolResultRenderersForTests()
     registerBuiltInChatToolResultRenderers()
 
     const ctx = {
       toolCallId: 't2',
-      mcpQualifiedToolName: 'excalidraw::create_view',
       normalized: normalizeToolResult({
-        content: [{ type: 'text', text: 'Diagram displayed! Checkpoint id: "x".' }],
-        structuredContent: { checkpointId: 'chk1' },
+        content: [{ type: 'text', text: 'x' }],
+        structuredContent: {
+          projAiriSurface: {
+            version: 1,
+            kind: 'embedUrl',
+            data: { url: 'javascript:alert(1)' },
+          },
+        },
       }),
     }
-    expect(resolveChatToolResultRenderer(ctx)?.id).toBe('excalidraw-create-view-notice')
+    expect(resolveChatToolResultRenderer(ctx)).toBeUndefined()
   })
 })

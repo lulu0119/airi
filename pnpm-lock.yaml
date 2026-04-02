@@ -2163,6 +2163,12 @@ importers:
         specifier: ^4.0.1
         version: 4.0.1(@nuxt/kit@3.20.2(magicast@0.5.2))(esbuild@0.27.2)(rolldown@1.0.0-rc.9)(rollup@4.60.0)(vite@8.0.2(@types/node@24.12.0)(esbuild@0.27.2)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
+  packages/mcp-surface-contract:
+    devDependencies:
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.21.4(@arethetypeswrong/core@0.18.2)(oxc-resolver@11.19.1)(publint@0.3.18)(synckit@0.11.12)(typescript@5.9.3)(unplugin-unused@0.5.7)(vue-tsc@3.2.6(typescript@5.9.3))
+
   packages/memory-pgvector:
     dependencies:
       '@guiiai/logg':
@@ -2608,6 +2614,9 @@ importers:
       '@proj-airi/i18n':
         specifier: workspace:^
         version: link:../i18n
+      '@proj-airi/mcp-surface-contract':
+        specifier: workspace:^
+        version: link:../mcp-surface-contract
       '@proj-airi/model-driver-lipsync':
         specifier: workspace:^
         version: link:../model-driver-lipsync

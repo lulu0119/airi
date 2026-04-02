@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://proj-airi.dev/schemas/mcp-surface/proj-airi-surface-v1.json",
+  "title": "proj-airi Surface envelope v1",
+  "description": "Nested under MCP tool structuredContent under key \"projAiriSurface\". AIRI host v1 renders only kind embedUrl via sandbox iframe.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "kind", "data"],
+  "properties": {
+    "version": { "const": 1 },
+    "kind": { "const": "embedUrl" },
+    "title": { "type": "string" },
+    "summary": { "type": "string" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url"],
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "description": "http(s) URL safe for iframe src in AIRI"
+        },
+        "mimeType": { "type": "string" }
+      }
+    }
+  }
+}

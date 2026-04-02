@@ -7,9 +7,11 @@
 export interface ChatToolResultRendererMatchDescriptor {
   /** Match xsAI-level tool name, e.g. `mcp_call_tool`. */
   xsaiToolName?: string
-  /** Match MCP qualified name from `mcp_call_tool` args, e.g. `excalidraw::create_view`. */
+  /** Match MCP qualified name from `mcp_call_tool` args. */
   mcpQualifiedToolNamePrefix?: string
   mcpQualifiedToolNameSuffix?: string
+  /** If set, require `structuredContent` to contain this top-level key (e.g. `projAiriSurface`). */
+  structuredContentHasKey?: string
   /** If true, require JSON/text body to include this substring (cheap guard). */
   textIncludes?: string
 }
