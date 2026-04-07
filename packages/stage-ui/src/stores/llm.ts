@@ -4,9 +4,7 @@ import type { CommonContentPart, CompletionToolCall, CompletionToolResult, Messa
 
 import { listModels } from '@xsai/model'
 import {
-
   stepCountAtLeast,
-
 } from '@xsai/shared-chat'
 import { streamText } from '@xsai/stream-text'
 import { defineStore } from 'pinia'
