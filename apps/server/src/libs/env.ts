@@ -5,7 +5,7 @@ import { env, exit } from 'node:process'
 
 import { useLogger } from '@guiiai/logg'
 import { injeca } from 'injeca'
-import { check, integer, maxValue, minValue, nonEmpty, object, optional, parse, pipe, string, transform } from 'valibot'
+import { check, integer, maxValue, minValue, nonEmpty, object, optional, parse, picklist, pipe, string, transform } from 'valibot'
 
 /**
  * Parses `ADDITIONAL_TRUSTED_ORIGINS`: comma-separated absolute origins used for
@@ -147,6 +147,10 @@ const EnvSchema = object({
     transform(b64 => Buffer.from(b64, 'base64')),
     check(buf => buf.length === 32, 'LLM_ROUTER_MASTER_KEY_PREVIOUS must decode to exactly 32 bytes when set'),
   )),
+
+  // Apple In-App Purchase (StoreKit 2)
+  APPLE_BUNDLE_ID: optional(string()),
+  APPLE_IAP_ENV: optional(picklist(['sandbox', 'production', 'xcode']), 'sandbox'),
 
   // Database pool
   DB_POOL_MAX: optionalIntegerFromString(20, 'DB_POOL_MAX', 1),

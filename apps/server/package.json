@@ -16,6 +16,7 @@
     "otel:dashboards": "tsx otel/grafana/dashboards/build.ts"
   },
   "dependencies": {
+    "@apple/app-store-server-library": "catalog:",
     "@better-auth/drizzle-adapter": "^1.6.5",
     "@better-auth/oauth-provider": "catalog:",
     "@dotenvx/dotenvx": "^1.61.1",
@@ -58,6 +59,7 @@
     "posthog-node": "catalog:",
     "resend": "^6.12.2",
     "stripe": "^22.0.2",
+    "uuid": "catalog:",
     "valibot": "catalog:",
     "ws": "catalog:",
     "zod": "catalog:"

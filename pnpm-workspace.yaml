@@ -30,6 +30,7 @@ patchedDependencies:
   sponsorkit@17.1.0: patches/sponsorkit@17.1.0.patch
   uiohook-napi@1.5.5: patches/uiohook-napi@1.5.5.patch
 catalog:
+  '@apple/app-store-server-library': ^3.0.0
   '@ax-llm/ax': ^19.0.43
   '@better-auth/oauth-provider': 1.5.6
   '@capacitor/android': ^8.3.1
@@ -72,6 +73,7 @@ catalog:
   '@types/hast': ^3.0.4
   '@types/splitpanes': ^2.2.6
   '@types/unist': ^3.0.3
+  '@types/uuid': ^11.0.0
   '@types/whatwg-mimetype': ^5.0.0
   '@types/ws': ^8.18.1
   '@vue/test-utils': ^2.4.6
@@ -140,6 +142,7 @@ catalog:
   unplugin-info: ^1.3.2
   unstorage: ^1.17.5
   uqr: ^0.1.3
+  uuid: ^13.0.0
   valibot: 1.2.0
   vieval: ^0.0.5
   vite: ^8.0.8

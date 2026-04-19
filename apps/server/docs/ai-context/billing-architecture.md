@@ -39,6 +39,10 @@ OpenAI route (`routes/openai/v1/index.ts`) 在 `consumeFluxForLLM` 完成后调�
 
 `llm_request_log` 没有 FK，没有二级索引，单纯追加；写入成本可以忽略。
 
+### Apple IAP（iOS）
+
+消耗型 StoreKit 2 购买在 `creditFluxFromAppleIapPurchase()` 内与 Stripe 同类：`apple_iap_transaction.fluxCredited` 做对象级 claim，成功后 `flux_transaction` 元数据带 `source: 'apple-iap.purchase.completed'`；成功落账后通过 OpenTelemetry `fluxCredited` 计数器打点（`source: 'apple.iap'`）。详见 [apple-iap.md](apple-iap.md)。
+
 ### 进程角色
 
 只有 `api` 一个 role（`src/bin/run.ts`），且没有任何"常驻后台 loop"或"fire-and-forget 异步任务"。所有写路径（包括 admin flux grant）都在请求线程内完成；多实例安全靠 `(userId, requestId)` 幂等索引。详见 [`workers-and-runtime.md`](workers-and-runtime.md)。
@@ -61,6 +65,7 @@ TTS 字符、STT 秒等单价 < 1 Flux 的服务通过 `FluxMeter` 累计零头�
 - **`creditFlux()`** — 通用充值（admin promo / 普通 credit）；幂等
 - **`creditFluxFromStripeCheckout()`** — Stripe 一次性支付充值，按 session 幂等
 - **`creditFluxFromInvoice()`** — Stripe 订阅发票充值，按 invoice 幂等
+- **`creditFluxFromAppleIapPurchase()`** — Apple IAP 消耗型购买充值，幂等（`apple_iap_transaction.fluxCredited` 原子 claim）。详见 [apple-iap.md](apple-iap.md)
 
 ### FluxService (`services/domain/flux.ts`)
 
