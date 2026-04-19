@@ -545,6 +545,9 @@ pages:
       success: Payment successful! Your Flux has been topped up.
       canceled: Le paiement a été annulé.
       error: Une erreur est survenue. Veuillez réessayer plus tard.
+      applePurchasing: Connexion à l’App Store…
+      appleSuccess: Achat réussi ! Votre Flux a été rechargé.
+      applePending: L’achat est en attente d’approbation. Le Flux sera crédité dès qu’Apple confirmera le paiement.
     audit:
       title: Historique des transactions
       time: Heure

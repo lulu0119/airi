@@ -5,6 +5,8 @@ import type { Database } from './libs/db'
 import type { Env } from './libs/env'
 import type { MqService } from './libs/mq'
 import type { OtelInstance } from './libs/otel'
+import type { AppleIapService } from './services/apple-iap/service'
+import type { AppleIapVerifier } from './services/apple-iap/verifier'
 import type { BillingEvent } from './services/billing/billing-events'
 import type { BillingService } from './services/billing/billing-service'
 import type { CharacterService } from './services/characters'
@@ -36,6 +38,7 @@ import { createRedis } from './libs/redis'
 import { resolveRequestAuth } from './libs/request-auth'
 import { sessionMiddleware } from './middlewares/auth'
 import { otelMiddleware } from './middlewares/otel'
+import { createAppleIapRoutes } from './routes/apple-iap'
 import { createAuthRoutes } from './routes/auth'
 import { createCharacterRoutes } from './routes/characters'
 import { createChatWsHandlers } from './routes/chat-ws'
@@ -44,6 +47,8 @@ import { createFluxRoutes } from './routes/flux'
 import { createV1CompletionsRoutes } from './routes/openai/v1'
 import { createProviderRoutes } from './routes/providers'
 import { createStripeRoutes } from './routes/stripe'
+import { createAppleIapService } from './services/apple-iap/service'
+import { createAppleIapVerifier } from './services/apple-iap/verifier'
 import { createBillingMq } from './services/billing/billing-events'
 import { createBillingService } from './services/billing/billing-service'
 import { createCharacterService } from './services/characters'
@@ -69,6 +74,8 @@ interface AppDeps {
   billingService: BillingService
   billingMq: MqService<BillingEvent>
   configKV: ConfigKVService
+  appleIapService: AppleIapService
+  appleIapVerifier: AppleIapVerifier | null
   redis: Redis
   env: Env
   otel: OtelInstance | null
@@ -199,6 +206,21 @@ export async function buildApp(deps: AppDeps) {
      * Stripe routes.
      */
     .route('/api/v1/stripe', createStripeRoutes(deps.fluxService, deps.stripeService, deps.billingService, deps.configKV, deps.env, deps.redis, deps.otel?.revenue))
+
+    /**
+     * Apple IAP routes.
+     *
+     * The route surface is always registered so the Hono client `AppType`
+     * is stable across deployments. If `APPLE_BUNDLE_ID` is unset or the
+     * Apple Root CA bundle is missing, individual handlers short-circuit
+     * with 503 instead of serving a broken endpoint.
+     */
+    .route('/api/v1/apple-iap', createAppleIapRoutes(
+      deps.appleIapService,
+      deps.appleIapVerifier,
+      deps.billingService,
+      deps.configKV,
+    ))
 
   return { app: builtApp, injectWebSocket }
 }
@@ -353,6 +375,33 @@ export async function createApp() {
     build: ({ dependsOn }) => createBillingService(dependsOn.db, dependsOn.redis, dependsOn.billingMq, dependsOn.configKV, dependsOn.otel?.revenue),
   })
 
+  const appleIapService = injeca.provide('services:appleIap', {
+    dependsOn: { db },
+    build: ({ dependsOn }) => createAppleIapService(dependsOn.db),
+  })
+
+  const appleIapVerifier = injeca.provide('services:appleIapVerifier', {
+    dependsOn: { env: parsedEnv },
+    build: async ({ dependsOn }) => {
+      // The Apple IAP verifier is optional. Deployments that do not ship the
+      // iOS app leave APPLE_BUNDLE_ID unset, and we should not hard-fail
+      // startup just because the bundle id + root CAs are missing.
+      if (!dependsOn.env.APPLE_BUNDLE_ID) {
+        return null
+      }
+      try {
+        return await createAppleIapVerifier({
+          bundleId: dependsOn.env.APPLE_BUNDLE_ID,
+          env: dependsOn.env.APPLE_IAP_ENV,
+        })
+      }
+      catch (error) {
+        logger.withError(error).warn('Failed to initialize Apple IAP verifier; /api/v1/apple-iap will be disabled')
+        return null
+      }
+    },
+  })
+
   await injeca.start()
   const resolved = await injeca.resolve({
     db,
@@ -367,6 +416,8 @@ export async function createApp() {
     billingService,
     billingMq,
     configKV,
+    appleIapService,
+    appleIapVerifier,
     redis,
     env: parsedEnv,
     otel,
@@ -383,6 +434,8 @@ export async function createApp() {
     billingService: resolved.billingService,
     billingMq: resolved.billingMq,
     configKV: resolved.configKV,
+    appleIapService: resolved.appleIapService,
+    appleIapVerifier: resolved.appleIapVerifier,
     redis: resolved.redis,
     env: resolved.env,
     otel: resolved.otel,

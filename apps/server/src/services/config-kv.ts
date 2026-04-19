@@ -1,7 +1,7 @@
 import type Redis from 'ioredis'
 import type { InferOutput } from 'valibot'
 
-import { any, array, number, optional, parse, record, string } from 'valibot'
+import { any, array, boolean, number, object, optional, parse, record, string } from 'valibot'
 
 import { createServiceUnavailableError } from '../utils/error'
 import { configRedisKey } from '../utils/redis-keys'
@@ -27,6 +27,15 @@ const ConfigEntrySchemas = {
   // No default — absent lets Stripe auto-select payment methods via Dashboard config
   STRIPE_PAYMENT_METHODS: optional(array(string())),
   STRIPE_PAYMENT_METHOD_OPTIONS: optional(record(string(), any()), {}),
+  // Apple IAP consumable flux package catalog.
+  // Each entry maps an App Store Connect productId to an internal flux credit.
+  // Absent means Apple IAP top-up is not available for this deployment.
+  APPLE_IAP_PRODUCTS: optional(array(object({
+    productId: string(),
+    fluxAmount: number(),
+    label: optional(string()),
+    recommended: optional(boolean()),
+  })), []),
 } as const
 
 type ConfigDefinitions = {

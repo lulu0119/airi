@@ -575,6 +575,9 @@ pages:
       success: Payment successful! Your Flux has been topped up.
       canceled: Payment was canceled.
       error: Something went wrong. Please try again later.
+      applePurchasing: Contacting the App Store…
+      appleSuccess: Purchase successful! Your Flux has been topped up.
+      applePending: Purchase is pending approval. Your Flux will arrive once Apple confirms the payment.
     audit:
       title: Transaction History
       time: Time

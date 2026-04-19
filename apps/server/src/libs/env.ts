@@ -4,7 +4,7 @@ import { env, exit } from 'node:process'
 
 import { useLogger } from '@guiiai/logg'
 import { injeca } from 'injeca'
-import { integer, maxValue, minValue, nonEmpty, object, optional, parse, pipe, string, transform } from 'valibot'
+import { integer, maxValue, minValue, nonEmpty, object, optional, parse, picklist, pipe, string, transform } from 'valibot'
 
 import { DEFAULT_BILLING_EVENTS_STREAM } from '../utils/redis-keys'
 
@@ -55,6 +55,10 @@ const EnvSchema = object({
 
   STRIPE_SECRET_KEY: optional(string()),
   STRIPE_WEBHOOK_SECRET: optional(string()),
+
+  // Apple In-App Purchase (StoreKit 2)
+  APPLE_BUNDLE_ID: optional(string()),
+  APPLE_IAP_ENV: optional(picklist(['sandbox', 'production']), 'sandbox'),
 
   BILLING_EVENTS_STREAM: optional(string(), DEFAULT_BILLING_EVENTS_STREAM),
   BILLING_EVENTS_CONSUMER_NAME: optional(string()),

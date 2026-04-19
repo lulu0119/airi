@@ -36,8 +36,8 @@ export function createUnauthorizedError(message = 'Unauthorized', details?: unkn
 /**
  * Creates a forbidden error (403)
  */
-export function createForbiddenError(message = 'Forbidden', details?: unknown) {
-  return new ApiError(403, 'FORBIDDEN', message, details)
+export function createForbiddenError(message = 'Forbidden', errorCode = 'FORBIDDEN', details?: unknown) {
+  return new ApiError(403, errorCode, message, details)
 }
 
 /**

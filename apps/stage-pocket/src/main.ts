@@ -15,6 +15,7 @@ import { routes } from 'vue-router/auto-routes'
 
 import App from './App.vue'
 
+import { setupAppleIap } from './modules/apple-iap'
 import { i18n } from './modules/i18n'
 
 import '@proj-airi/font-cjkfonts-allseto/index.css'
@@ -58,6 +59,9 @@ createApp(App)
   .use(i18n)
   .use(Tres)
   .mount('#app')
+
+// Must run after `pinia` is installed (uses `useAuthStore`). No-op outside iOS.
+setupAppleIap()
 
 if (import.meta.env.DEV && !import.meta.env.SSR) {
   function captureEvents(el: HTMLElement) {

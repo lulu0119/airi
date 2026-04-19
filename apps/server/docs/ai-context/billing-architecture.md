@@ -38,8 +38,9 @@ Stream: `billing-events`
 | Event Type | 触发场景 |
 |---|---|
 | `flux.debited` | LLM 请求扣费 |
-| `flux.credited` | Stripe 充值、管理员授予 |
-| `stripe.checkout.completed` | 一次性支付完成 |
+| `flux.credited` | Stripe / Apple IAP 充值、管理员授予 |
+| `stripe.checkout.completed` | Stripe 一次性支付完成 |
+| `apple-iap.purchase.completed` | Apple StoreKit 2 消耗型购买落账（仅 iOS 构建） |
 | `llm.request.completed` | LLM 请求结束 |
 
 ### 进程角色
@@ -63,6 +64,7 @@ Flux 充值定价完全由 Stripe Product/Price 管理，详见 [stripe-pricing.
 - **`creditFlux()`** — 通用充值
 - **`creditFluxFromStripeCheckout()`** — Stripe 一次性支付充值，幂等(`fluxCredited` 标志)
 - **`creditFluxFromInvoice()`** — Stripe 订阅发票充值，幂等
+- **`creditFluxFromAppleIapPurchase()`** — Apple IAP 消耗型购买充值，幂等（`apple_iap_transaction.fluxCredited` 原子 claim）。详见 [apple-iap.md](apple-iap.md)
 
 ### FluxService (`services/flux.ts`)
 
