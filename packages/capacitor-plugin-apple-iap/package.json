@@ -1,0 +1,45 @@
+{
+  "name": "@proj-airi/capacitor-plugin-apple-iap",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Capacitor plugin that bridges StoreKit 2 one-time purchases into the AIRI Flux billing pipeline",
+  "author": {
+    "name": "Moeru AI Project AIRI Team",
+    "email": "airi@moeru.ai",
+    "url": "https://github.com/moeru-ai"
+  },
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "files": [
+    "Package.swift",
+    "README.md",
+    "dist",
+    "ios/Sources",
+    "package.json"
+  ],
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@capacitor/core": "catalog:"
+  },
+  "devDependencies": {
+    "@capacitor/core": "catalog:",
+    "tsdown": "catalog:"
+  }
+}

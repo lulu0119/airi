@@ -58,6 +58,8 @@ function createTestDeps() {
       trackGeneration: vi.fn(async () => undefined),
       countDistinctUsersByFeature: vi.fn(async () => []),
     },
+    appleIapService: {} as any,
+    appleIapVerifier: null,
     configKV: {
       getOrThrow: vi.fn(async (key: string) => {
         switch (key) {

@@ -6,6 +6,8 @@ import type { Env } from './libs/env'
 import type { OtelInstance } from './otel'
 import type { StreamingTtsVoiceType } from './routes/audio-speech-ws/session'
 import type { ConfigKVService } from './services/adapters/config-kv'
+import type { AppleIapService } from './services/apple-iap/service'
+import type { AppleIapVerifier } from './services/apple-iap/verifier'
 import type { AdminFluxGrantsService } from './services/domain/admin/flux-grants'
 import type { AdminRouterConfigService } from './services/domain/admin/router-config'
 import type { AdminUsersService } from './services/domain/admin/users'
@@ -60,6 +62,7 @@ import { createAdminFluxGrantsRoutes } from './routes/admin/flux-grants'
 import { createAdminProviderCatalogRoutes } from './routes/admin/provider-catalog'
 import { createAdminUsersRoutes } from './routes/admin/users'
 import { createAdminVoicePackRoutes } from './routes/admin/voice-packs'
+import { createAppleIapRoutes } from './routes/apple-iap'
 import { createAudioSpeechWsHandlers } from './routes/audio-speech-ws'
 import { createAudioTranscriptionStreamHandler } from './routes/audio-transcription-stream/route'
 import { createAuthRoutes } from './routes/auth'
@@ -74,6 +77,8 @@ import { createVoicePackRoutes } from './routes/voice-packs'
 import { createConfigKVService } from './services/adapters/config-kv'
 import { createEmailService } from './services/adapters/email'
 import { createPosthogSink } from './services/adapters/posthog'
+import { createAppleIapService } from './services/apple-iap/service'
+import { createAppleIapVerifier } from './services/apple-iap/verifier'
 import { createAdminFluxGrantsService } from './services/domain/admin/flux-grants'
 import { createAdminRouterConfigService } from './services/domain/admin/router-config'
 import { createAdminUsersService } from './services/domain/admin/users'
@@ -115,6 +120,8 @@ interface AppDeps {
   productEventService: ProductEventService
   configKV: ConfigKVService
   envelopeCrypto: EnvelopeCrypto
+  appleIapService: AppleIapService
+  appleIapVerifier: AppleIapVerifier | null
   redis: Redis
   env: Env
   otel: OtelInstance | null
@@ -439,6 +446,21 @@ export async function buildApp(deps: AppDeps) {
       llmRouter: deps.llmRouter,
       service: deps.providerCatalogService,
     }))
+
+    /**
+     * Apple IAP routes.
+     *
+     * The route surface is always registered so the Hono client `AppType`
+     * is stable across deployments. If `APPLE_BUNDLE_ID` is unset or the
+     * Apple Root CA bundle is missing, individual handlers short-circuit
+     * with 503 instead of serving a broken endpoint.
+     */
+    .route('/api/v1/apple-iap', createAppleIapRoutes(
+      deps.appleIapService,
+      deps.appleIapVerifier,
+      deps.billingService,
+      deps.configKV,
+    ))
 
     /**
      * Admin LLM router config seeding/patching. Single entry point for
@@ -775,6 +797,33 @@ export async function createApp() {
     }),
   })
 
+  const appleIapService = injeca.provide('services:appleIap', {
+    dependsOn: { db },
+    build: ({ dependsOn }) => createAppleIapService(dependsOn.db),
+  })
+
+  const appleIapVerifier = injeca.provide('services:appleIapVerifier', {
+    dependsOn: { env: parsedEnv },
+    build: async ({ dependsOn }) => {
+      // The Apple IAP verifier is optional. Deployments that do not ship the
+      // iOS app leave APPLE_BUNDLE_ID unset, and we should not hard-fail
+      // startup just because the bundle id + root CAs are missing.
+      if (!dependsOn.env.APPLE_BUNDLE_ID) {
+        return null
+      }
+      try {
+        return await createAppleIapVerifier({
+          bundleId: dependsOn.env.APPLE_BUNDLE_ID,
+          env: dependsOn.env.APPLE_IAP_ENV,
+        })
+      }
+      catch (error) {
+        logger.withError(error).warn('Failed to initialize Apple IAP verifier; /api/v1/apple-iap will be disabled')
+        return null
+      }
+    },
+  })
+
   // LLM router (KTD-5 in-process replacement for the knoway sidecar).
   // LLM_ROUTER_MASTER_KEY is required at env-parse time, so this provider
   // always builds a real router — the legacy `null` fallback path is gone.
@@ -816,6 +865,8 @@ export async function createApp() {
     ttsMeter,
     configKV,
     envelopeCrypto,
+    appleIapService,
+    appleIapVerifier,
     redis,
     env: parsedEnv,
     otel,
@@ -848,6 +899,8 @@ export async function createApp() {
     productEventService: resolved.productEventService,
     configKV: resolved.configKV,
     envelopeCrypto: resolved.envelopeCrypto,
+    appleIapService: resolved.appleIapService,
+    appleIapVerifier: resolved.appleIapVerifier,
     redis: resolved.redis,
     env: resolved.env,
     otel: resolved.otel,

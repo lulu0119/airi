@@ -3,6 +3,7 @@ import type { FluxBalanceBucket } from '@proj-airi/stage-ui/composables/use-anal
 
 import { isFluxPurchaseDisabled, isStageTamagotchi } from '@proj-airi/stage-shared'
 import { client } from '@proj-airi/stage-ui/composables/api'
+import { useFluxCheckout } from '@proj-airi/stage-ui/composables/flux-checkout'
 import { useAnalytics } from '@proj-airi/stage-ui/composables/use-analytics'
 import { useAuthStore } from '@proj-airi/stage-ui/stores/auth'
 import { Button, SelectTab } from '@proj-airi/ui'
@@ -35,29 +36,19 @@ const fluxPurchaseDisabled = isFluxPurchaseDisabled()
 if (isStageTamagotchi())
   useEventListener(window, 'focus', () => authStore.updateCredits())
 
-interface FluxPackage {
-  stripePriceId: string
-  label: string
-  defaultCurrency: string
-  currencies: Record<string, string>
-  recommended?: boolean
-}
-
-const loadingPriceId = ref<string | null>(null)
 const message = ref<{ type: 'success' | 'error', text: string } | null>(null)
 const checkoutReturnMessageActive = ref(false)
-const packages = ref<FluxPackage[]>([])
-const selectedCurrency = ref<string>('usd')
 
-const currencyOptions = computed(() => {
-  if (packages.value.length === 0)
-    return []
-  // Currencies supported by all packages
-  const first = Object.keys(packages.value[0].currencies)
-  return first
-    .filter(c => packages.value.every(p => c in p.currencies))
-    .map(c => ({ label: c.toUpperCase(), value: c }))
-})
+const checkout = useFluxCheckout()
+const {
+  platform,
+  packages,
+  purchasing,
+  error: checkoutError,
+  selectedCurrency,
+  currencyOptions,
+  supportsCurrencySelection,
+} = checkout
 
 // NOTICE: Manual interface instead of hono InferResponseType because hono client
 // type instantiation hits TS recursion limits ("excessively deep and possibly infinite").
@@ -243,22 +234,6 @@ const groupedRows = computed<GroupedRow[]>(() => {
   return rows
 })
 
-async function fetchPackages() {
-  try {
-    const res = await client.api.v1.stripe.packages.$get()
-    if (res.ok) {
-      const data = await res.json() as FluxPackage[]
-      packages.value = data
-      if (data.length > 0)
-        selectedCurrency.value = data[0].defaultCurrency
-    }
-  }
-  catch {
-    if (!checkoutReturnMessageActive.value)
-      message.value = { type: 'error', text: t('settings.pages.flux.packagesError') }
-  }
-}
-
 /**
  * Shows a Stripe return banner that background package refreshes must not replace.
  */
@@ -269,7 +244,7 @@ function showCheckoutReturnMessage(type: 'success' | 'error', text: string) {
 
 onMounted(async () => {
   const creditsRefresh = authStore.updateCredits()
-  void Promise.allSettled([fetchStats(), fetchAuditHistory(), ...(fluxPurchaseDisabled ? [] : [fetchPackages()])])
+  void Promise.allSettled([fetchStats(), fetchAuditHistory(), ...(fluxPurchaseDisabled ? [] : [checkout.fetchPackages()])])
 
   if (route.query.success === 'true') {
     showCheckoutReturnMessage('success', t('settings.pages.flux.checkout.success'))
@@ -304,8 +279,15 @@ onMounted(async () => {
   }
 })
 
-async function handleBuy(stripePriceId: string) {
-  loadingPriceId.value = stripePriceId
+// Surface composable errors through the shared message banner so the
+// existing i18n/styles apply uniformly whether the error came from Stripe
+// or Apple IAP.
+const packagesError = computed(() => checkoutError.value
+  ? { type: 'error' as const, text: t('settings.pages.flux.packagesError') }
+  : null,
+)
+
+async function handleBuy(id: string) {
   checkoutReturnMessageActive.value = false
   message.value = null
   // PostHog funnel step 2: user picked a plan. price_minor_unit lives on
@@ -317,42 +299,28 @@ async function handleBuy(stripePriceId: string) {
     current_plan: 'flux',
     trigger: 'manual_topup',
   })
-  trackPlanSelected(stripePriceId, {
-    currency: selectedCurrency.value,
-    entry_surface: 'settings_flux',
+  const result = await checkout.purchase(id, {
+    onStripePlanSelected: priceId => trackPlanSelected(priceId, { currency: selectedCurrency.value, entry_surface: 'settings_flux' }),
+    onStripeBeforeRedirect: priceId => trackCheckoutStarted(priceId, { currency: selectedCurrency.value, entry_surface: 'settings_flux' }),
   })
-  try {
-    const res = await client.api.v1.stripe.checkout.$post({ json: { stripePriceId, currency: selectedCurrency.value } })
-    if (!res.ok) {
-      const data = await res.json() as { error?: string, message?: string }
-      message.value = { type: 'error', text: data.message || t('settings.pages.flux.checkout.error') }
+
+  if (result.status === 'success') {
+    if (result.redirecting)
       return
-    }
-    const data = await res.json()
-    if (data.url) {
-      // PostHog funnel step 3: about to redirect to Stripe. Capture before
-      // the page nav so the event is sent (PostHog's beforeunload handler
-      // would otherwise race the navigation).
-      trackCheckoutStarted(stripePriceId, {
-        currency: selectedCurrency.value,
-        entry_surface: 'settings_flux',
-      })
-      // Electron renderer runs from file:// and cannot navigate to Stripe in-window
-      // (the settings window would load checkout.stripe.com and never come back).
-      // window.open routes through setWindowOpenHandler -> shell.openExternal, so the
-      // system browser handles payment. Web keeps the in-window redirect.
-      if (isStageTamagotchi())
-        window.open(data.url, '_blank')
-      else
-        window.location.href = data.url
-    }
+    await authStore.updateCredits()
+    await fetchAuditHistory()
+    message.value = { type: 'success', text: t('settings.pages.flux.checkout.appleSuccess') }
+    return
   }
-  catch {
-    message.value = { type: 'error', text: t('settings.pages.flux.checkout.error') }
+  if (result.status === 'pending') {
+    message.value = { type: 'success', text: t('settings.pages.flux.checkout.applePending') }
+    return
   }
-  finally {
-    loadingPriceId.value = null
+  if (result.status === 'canceled') {
+    message.value = { type: 'error', text: t('settings.pages.flux.checkout.canceled') }
+    return
   }
+  message.value = { type: 'error', text: result.message || t('settings.pages.flux.checkout.error') }
 }
 </script>
 
@@ -391,8 +359,17 @@ async function handleBuy(stripePriceId: string) {
     </div>
 
     <div v-if="!fluxPurchaseDisabled" flex="~ col gap-4">
-      <!-- Currency selector -->
-      <div v-if="currencyOptions.length > 1" flex="~ justify-start sm:justify-end">
+      <!-- Package-load error banner (independent from per-purchase message) -->
+      <div
+        v-if="packagesError"
+        rounded-lg p-3 text-sm
+        :class="['bg-red-500/10 text-red-600 dark:text-red-400']"
+      >
+        {{ packagesError.text }}
+      </div>
+
+      <!-- Currency selector (hidden on iOS — App Store prices are region-bound) -->
+      <div v-if="supportsCurrencySelection" flex="~ justify-start sm:justify-end">
         <SelectTab
           v-model="selectedCurrency"
           :options="currencyOptions"
@@ -402,8 +379,8 @@ async function handleBuy(stripePriceId: string) {
 
       <div grid="~ cols-1 sm:cols-3 gap-4">
         <button
-          v-for="(pkg, index) in packages" :key="pkg.stripePriceId"
-          :disabled="loadingPriceId !== null"
+          v-for="(pkg, index) in packages" :key="pkg.id"
+          :disabled="purchasing !== null"
           :class="[
             'group relative flex flex-row sm:flex-col items-center justify-between sm:justify-center overflow-hidden text-left sm:text-center gap-4 sm:gap-2',
             'rounded-2xl border-2 bg-white p-6 transition-all duration-300 ease-out',
@@ -411,9 +388,9 @@ async function handleBuy(stripePriceId: string) {
             'dark:bg-neutral-900',
             'hover:-translate-y-1 hover:border-primary-400 hover:shadow-md dark:hover:border-primary-500',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500',
-            loadingPriceId !== null && loadingPriceId !== pkg.stripePriceId ? 'opacity-50 grayscale-50 cursor-not-allowed' : 'cursor-pointer',
+            purchasing !== null && purchasing !== pkg.id ? 'opacity-50 grayscale-50 cursor-not-allowed' : 'cursor-pointer',
           ]"
-          @click="handleBuy(pkg.stripePriceId)"
+          @click="handleBuy(pkg.id)"
         >
           <!-- Recommended Badge -->
           <div
@@ -426,10 +403,16 @@ async function handleBuy(stripePriceId: string) {
 
           <!-- Loading Overlay -->
           <div
-            v-if="loadingPriceId === pkg.stripePriceId"
+            v-if="purchasing === pkg.id"
             class="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-sm dark:bg-neutral-900/60"
           >
             <div class="i-svg-spinners:90-ring-with-bg size-8 text-primary-500" />
+            <div
+              v-if="platform === 'ios'"
+              ml-2 text="sm primary-600 dark:primary-400"
+            >
+              {{ t('settings.pages.flux.checkout.applePurchasing') }}
+            </div>
           </div>
 
           <div flex="~ col sm:items-center gap-1" relative z-1 w-full>
@@ -438,7 +421,7 @@ async function handleBuy(stripePriceId: string) {
             </div>
             <div flex="~ items-baseline justify-start sm:justify-center gap-1">
               <span text="2xl neutral-800 dark:neutral-100" font-bold>
-                {{ pkg.currencies[selectedCurrency] ?? pkg.currencies[pkg.defaultCurrency] }}
+                {{ pkg.displayPrice }}
               </span>
             </div>
           </div>

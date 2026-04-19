@@ -18,6 +18,7 @@
     "db:push": "pnpm run apply:env -- drizzle-kit push"
   },
   "dependencies": {
+    "@apple/app-store-server-library": "catalog:",
     "@better-auth/drizzle-adapter": "catalog:",
     "@better-auth/oauth-provider": "catalog:",
     "@dotenvx/dotenvx": "catalog:",

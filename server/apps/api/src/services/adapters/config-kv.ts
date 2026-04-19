@@ -281,6 +281,15 @@ const ConfigEntrySchemas = {
   // carry the upstream-provider API key (Volcengine X-Api-Key), not an
   // unspeech tenant token (unspeech itself is unauthenticated).
   UNSPEECH_UPSTREAM: optional(unspeechUpstreamSchema),
+  // Apple IAP consumable flux package catalog.
+  // Each entry maps an App Store Connect productId to an internal flux credit.
+  // Absent means Apple IAP top-up is not available for this deployment.
+  APPLE_IAP_PRODUCTS: optional(array(object({
+    productId: string(),
+    fluxAmount: number(),
+    label: optional(string()),
+    recommended: optional(boolean()),
+  })), []),
 } as const
 
 type ConfigDefinitions = {

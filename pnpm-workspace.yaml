@@ -45,6 +45,7 @@ catalog:
   '@antfu/eslint-config': ^8.2.0
   '@anthropic-ai/claude-code': ^2.1.204
   '@arethetypeswrong/core': ^0.18.2
+  '@apple/app-store-server-library': ^3.0.0
   '@ax-llm/ax': ^19.0.43
   '@better-auth/cli': ^1.4.22
   '@better-auth/drizzle-adapter': ^1.6.25
@@ -196,6 +197,7 @@ catalog:
   '@types/three': ^0.184.0
   '@types/unist': ^3.0.3
   '@types/vscode': ^1.116.0
+  '@types/uuid': ^11.0.0
   '@types/whatwg-mimetype': ^5.0.0
   '@types/ws': ^8.18.1
   '@types/xast': ^2.0.4
