@@ -15,6 +15,7 @@
     "db:push": "pnpm run apply:env -- drizzle-kit push"
   },
   "dependencies": {
+    "@apple/app-store-server-library": "catalog:",
     "@better-auth/drizzle-adapter": "^1.6.5",
     "@better-auth/oauth-provider": "catalog:",
     "@dotenvx/dotenvx": "^1.61.1",
@@ -55,12 +56,14 @@
     "pg": "^8.20.0",
     "resend": "^6.12.2",
     "stripe": "^22.0.2",
+    "uuid": "catalog:",
     "valibot": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@better-auth/cli": "^1.4.21",
     "@types/pg": "^8.20.0",
+    "@types/uuid": "catalog:",
     "drizzle-kit": "catalog:"
   }
 }

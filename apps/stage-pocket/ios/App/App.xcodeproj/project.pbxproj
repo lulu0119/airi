@@ -7,9 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A1B2C3D42F10000100AA0001 /* HostWebSocketBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F10000100AA0002 /* HostWebSocketBridge.swift */; };
-		A1B2C3D42F10000100AA0003 /* URLSessionHostWebSocketSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F10000100AA0004 /* URLSessionHostWebSocketSession.swift */; };
-		A1B2C3D42F10000100AA0005 /* WeakScriptMessageHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F10000100AA0006 /* WeakScriptMessageHandler.swift */; };
 		0DF9DE312F0E0A42008AB01F /* AppIcon_LiquidGlass.icon in Resources */ = {isa = PBXBuildFile; fileRef = 0DF9DE302F0E0A42008AB01F /* AppIcon_LiquidGlass.icon */; };
 		29ABB4BA2F03F2B400285F7F /* DevBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ABB4B92F03F2B400285F7F /* DevBridgeViewController.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
@@ -20,12 +17,12 @@
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
+		A1B2C3D42F10000100AA0001 /* HostWebSocketBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F10000100AA0002 /* HostWebSocketBridge.swift */; };
+		A1B2C3D42F10000100AA0003 /* URLSessionHostWebSocketSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F10000100AA0004 /* URLSessionHostWebSocketSession.swift */; };
+		A1B2C3D42F10000100AA0005 /* WeakScriptMessageHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F10000100AA0006 /* WeakScriptMessageHandler.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A1B2C3D42F10000100AA0002 /* HostWebSocketBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostWebSocketBridge.swift; sourceTree = "<group>"; };
-		A1B2C3D42F10000100AA0004 /* URLSessionHostWebSocketSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLSessionHostWebSocketSession.swift; sourceTree = "<group>"; };
-		A1B2C3D42F10000100AA0006 /* WeakScriptMessageHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeakScriptMessageHandler.swift; sourceTree = "<group>"; };
 		0DF9DE302F0E0A42008AB01F /* AppIcon_LiquidGlass.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon_LiquidGlass.icon; sourceTree = "<group>"; };
 		29ABB4B92F03F2B400285F7F /* DevBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevBridgeViewController.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
@@ -38,6 +35,9 @@
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		A1B2C3D42F10000100AA0002 /* HostWebSocketBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostWebSocketBridge.swift; sourceTree = "<group>"; };
+		A1B2C3D42F10000100AA0004 /* URLSessionHostWebSocketSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLSessionHostWebSocketSession.swift; sourceTree = "<group>"; };
+		A1B2C3D42F10000100AA0006 /* WeakScriptMessageHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeakScriptMessageHandler.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */

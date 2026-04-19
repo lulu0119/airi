@@ -607,6 +607,9 @@ pages:
       success: '¡Pago exitoso! Tu Flujo ha sido recargado.'
       canceled: Se ha anulado el pago
       error: Algo ha ido mal, inténtalo más tarde.
+      applePurchasing: Conectando con la App Store…
+      appleSuccess: '¡Compra completada! Tu Flujo se ha recargado.'
+      applePending: La compra está pendiente de aprobación. El Flujo se abonará cuando Apple confirme el pago.
     audit:
       title: Historial de Transacciones
       time: Tiempo

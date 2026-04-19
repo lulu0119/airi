@@ -48,6 +48,8 @@ function createTestDeps() {
     billingService: {} as any,
     ttsMeter: {} as any,
     billingMq: {} as any,
+    appleIapService: {} as any,
+    appleIapVerifier: null,
     configKV: {
       getOrThrow: vi.fn(async (key: string) => {
         switch (key) {

@@ -607,6 +607,9 @@ pages:
       success: Payment successful! Your Flux has been topped up.
       canceled: Payment was canceled.
       error: Something went wrong. Please try again later.
+      applePurchasing: 正在連線到 App Store…
+      appleSuccess: 購買成功！Flux 通量已補充到帳。
+      applePending: 付款審核中，待 Apple 確認後 Flux 會自動到帳。
     audit:
       title: Transaction History
       time: Time

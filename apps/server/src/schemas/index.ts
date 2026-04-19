@@ -1,4 +1,5 @@
 export * from './accounts'
+export * from './apple-iap'
 export * from './characters'
 export * from './chats'
 export * from './flux'

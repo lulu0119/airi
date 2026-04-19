@@ -32,6 +32,7 @@
     "@moeru/eventa": "catalog:",
     "@moeru/std": "catalog:",
     "@proj-airi/audio": "workspace:^",
+    "@proj-airi/capacitor-plugin-apple-iap": "workspace:^",
     "@proj-airi/ccc": "workspace:^",
     "@proj-airi/drizzle-duckdb-wasm": "catalog:",
     "@proj-airi/font-chillroundm": "workspace:^",

@@ -13,6 +13,7 @@ import { createPaymentRequiredError } from '../../utils/error'
 import { nanoid } from '../../utils/id'
 import { userFluxRedisKey } from '../../utils/redis-keys'
 
+import * as appleIapSchema from '../../schemas/apple-iap'
 import * as fluxSchema from '../../schemas/flux'
 import * as fluxTxSchema from '../../schemas/flux-transaction'
 import * as stripeSchema from '../../schemas/stripe'
@@ -331,6 +332,129 @@ export function createBillingService(
             stripeSessionId: input.stripeSessionId,
             amount: input.amountTotal,
             currency: input.currency ?? 'unknown',
+          },
+        })
+      }
+
+      return txResult
+    },
+
+    /**
+     * Credit flux from a verified Apple IAP (StoreKit 2) consumable purchase.
+     *
+     * Idempotent: claims the `apple_iap_transaction` row via
+     * `fluxCredited = false -> true` exactly once. A redelivered JWS (StoreKit
+     * `Transaction.updates` retry, Ask-to-Buy resolution, client retry) will
+     * take the `applied: false` branch without double-crediting.
+     *
+     * Expects:
+     * - The row for `transactionId` already exists (route is expected to
+     *   `upsertTransaction` before calling this).
+     * - All JWS + bundle + environment + appAccountToken checks have already
+     *   passed upstream.
+     *
+     * Returns:
+     * - `{ applied: true, balanceAfter }` on first credit.
+     * - `{ applied: false }` on idempotent replay.
+     */
+    async creditFluxFromAppleIapPurchase(input: {
+      userId: string
+      transactionId: string
+      productId: string
+      fluxAmount: number
+      priceMicros: number | null
+      currency: string
+    }): Promise<{ applied: boolean, balanceAfter?: number }> {
+      const txResult = await db.transaction(async (tx) => {
+        // NOTICE:
+        // Object-level claim on the apple_iap_transaction row — same model as
+        // creditFluxFromStripeCheckout. Any retry of the same transactionId
+        // (StoreKit redelivery, manual client retry) fails to claim and
+        // short-circuits to applied:false.
+        const [claimed] = await tx.update(appleIapSchema.appleIapTransaction)
+          .set({ fluxCredited: true, updatedAt: new Date() })
+          .where(and(
+            eq(appleIapSchema.appleIapTransaction.transactionId, input.transactionId),
+            eq(appleIapSchema.appleIapTransaction.fluxCredited, false),
+          ))
+          .returning()
+
+        if (!claimed) {
+          return { applied: false }
+        }
+
+        await tx.insert(fluxSchema.userFlux)
+          .values({ userId: input.userId, flux: 0 })
+          .onConflictDoNothing({ target: fluxSchema.userFlux.userId })
+
+        const [currentFlux] = await tx
+          .select({ flux: fluxSchema.userFlux.flux })
+          .from(fluxSchema.userFlux)
+          .where(eq(fluxSchema.userFlux.userId, input.userId))
+          .for('update')
+
+        const balanceBefore = currentFlux!.flux
+        const balanceAfter = balanceBefore + input.fluxAmount
+
+        await tx.update(fluxSchema.userFlux)
+          .set({ flux: balanceAfter, updatedAt: new Date() })
+          .where(eq(fluxSchema.userFlux.userId, input.userId))
+
+        const priceLabel = input.priceMicros != null
+          ? (input.priceMicros / 1_000_000).toFixed(2)
+          : '?'
+        const description = `Apple IAP ${input.currency.toUpperCase()} ${priceLabel}`
+
+        await tx.insert(fluxTxSchema.fluxTransaction).values({
+          userId: input.userId,
+          type: 'credit',
+          amount: input.fluxAmount,
+          balanceBefore,
+          balanceAfter,
+          requestId: input.transactionId,
+          description,
+          metadata: {
+            appleTransactionId: input.transactionId,
+            productId: input.productId,
+            source: 'apple-iap.purchase.completed',
+          },
+        })
+
+        return { applied: true, balanceAfter }
+      })
+
+      if (txResult.applied && txResult.balanceAfter != null) {
+        await updateRedisCache(input.userId, txResult.balanceAfter)
+
+        const occurredAt = new Date().toISOString()
+        await publishEvent({
+          eventId: nanoid(),
+          eventType: 'flux.credited',
+          aggregateId: input.userId,
+          userId: input.userId,
+          requestId: input.transactionId,
+          occurredAt,
+          schemaVersion: 1,
+          payload: {
+            amount: input.fluxAmount,
+            balanceAfter: txResult.balanceAfter,
+            source: 'apple-iap.purchase.completed',
+          },
+        })
+
+        await publishEvent({
+          eventId: nanoid(),
+          eventType: 'apple-iap.purchase.completed',
+          aggregateId: input.transactionId,
+          userId: input.userId,
+          requestId: input.transactionId,
+          occurredAt,
+          schemaVersion: 1,
+          payload: {
+            transactionId: input.transactionId,
+            productId: input.productId,
+            amount: input.priceMicros ?? 0,
+            currency: input.currency,
           },
         })
       }

@@ -607,6 +607,9 @@ pages:
       success: 支払いが完了しました！Fluxの残高が補充されました。
       canceled: 支払いはキャンセルされました。
       error: 何か問題が発生しました。後でもう一度お試しください。
+      applePurchasing: App Storeに接続中…
+      appleSuccess: 購入が完了しました！Fluxが補充されました。
+      applePending: 支払いは承認待ちです。Appleの確認が完了するとFluxが自動的に付与されます。
     audit:
       title: 取引履歴
       time: 時間

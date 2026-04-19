@@ -607,6 +607,9 @@ pages:
       success: Payment successful! Your Flux has been topped up.
       canceled: Payment was canceled.
       error: Something went wrong. Please try again later.
+      applePurchasing: Đang kết nối tới App Store…
+      appleSuccess: Thanh toán thành công! Flux của bạn đã được nạp thêm.
+      applePending: Giao dịch đang chờ phê duyệt. Flux sẽ được cộng khi Apple xác nhận thanh toán.
     audit:
       title: Transaction History
       time: Time

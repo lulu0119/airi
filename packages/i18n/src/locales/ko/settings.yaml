@@ -607,6 +607,9 @@ pages:
       success: Payment successful! Your Flux has been topped up.
       canceled: Payment was canceled.
       error: Something went wrong. Please try again later.
+      applePurchasing: App Store에 연결하는 중…
+      appleSuccess: 구매가 완료되었습니다! Flux가 충전되었습니다.
+      applePending: 결제가 승인 대기 중입니다. Apple이 결제를 확인하면 Flux가 자동으로 지급됩니다.
     audit:
       title: Transaction History
       time: Time

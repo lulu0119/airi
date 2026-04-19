@@ -22,6 +22,7 @@ const BillingEventTypeSchema = union([
   literal('flux.debited'),
   literal('flux.credited'),
   literal('stripe.checkout.completed'),
+  literal('apple-iap.purchase.completed'),
   literal('llm.request.completed'),
   literal('llm.request.log'),
 ])
@@ -37,6 +38,13 @@ const BalanceChangePayloadSchema = object({
 const StripeCheckoutCompletedPayloadSchema = object({
   stripeEventId: pipe(string(), nonEmpty()),
   stripeSessionId: pipe(string(), nonEmpty()),
+  amount: number(),
+  currency: pipe(string(), nonEmpty()),
+})
+
+const AppleIapPurchaseCompletedPayloadSchema = object({
+  transactionId: pipe(string(), nonEmpty()),
+  productId: pipe(string(), nonEmpty()),
   amount: number(),
   currency: pipe(string(), nonEmpty()),
 })
@@ -74,6 +82,7 @@ export type BillingEventType = InferOutput<typeof BillingEventTypeSchema>
 type BillingEventEnvelope = InferOutput<typeof BillingEventEnvelopeSchema>
 type BalanceChangePayload = InferOutput<typeof BalanceChangePayloadSchema>
 type StripeCheckoutCompletedPayload = InferOutput<typeof StripeCheckoutCompletedPayloadSchema>
+type AppleIapPurchaseCompletedPayload = InferOutput<typeof AppleIapPurchaseCompletedPayloadSchema>
 type LlmRequestCompletedPayload = InferOutput<typeof LlmRequestCompletedPayloadSchema>
 type LlmRequestLogPayload = InferOutput<typeof LlmRequestLogPayloadSchema>
 
@@ -92,6 +101,11 @@ export type StripeCheckoutCompletedEvent = BillingEventEnvelope & {
   payload: StripeCheckoutCompletedPayload
 }
 
+export type AppleIapPurchaseCompletedEvent = BillingEventEnvelope & {
+  eventType: 'apple-iap.purchase.completed'
+  payload: AppleIapPurchaseCompletedPayload
+}
+
 export type LlmRequestCompletedEvent = BillingEventEnvelope & {
   eventType: 'llm.request.completed'
   payload: LlmRequestCompletedPayload
@@ -106,6 +120,7 @@ export type BillingEvent
   = | FluxDebitedEvent
     | FluxCreditedEvent
     | StripeCheckoutCompletedEvent
+    | AppleIapPurchaseCompletedEvent
     | LlmRequestCompletedEvent
     | LlmRequestLogEvent
 
@@ -180,6 +195,12 @@ export function parseBillingEvent(fields: Record<string, string | undefined>): B
         ...parsedEnvelope,
         eventType: 'stripe.checkout.completed',
         payload: parse(StripeCheckoutCompletedPayloadSchema, parsedEnvelope.payload),
+      }
+    case 'apple-iap.purchase.completed':
+      return {
+        ...parsedEnvelope,
+        eventType: 'apple-iap.purchase.completed',
+        payload: parse(AppleIapPurchaseCompletedPayloadSchema, parsedEnvelope.payload),
       }
     case 'llm.request.completed':
       return {

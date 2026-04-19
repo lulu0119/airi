@@ -690,6 +690,9 @@ pages:
       success: 谢谢你！你的 Flux 通量已经更新好啦～
       canceled: 支付被取消
       error: 哎呀，出错了，请稍后再试
+      applePurchasing: 正在联系 App Store…
+      appleSuccess: 购买成功！你的 Flux 通量已经补充到账～
+      applePending: 支付审核中，待 Apple 确认后 Flux 通量会自动到账。
     audit:
       title: 使用记录
       time: 时间
