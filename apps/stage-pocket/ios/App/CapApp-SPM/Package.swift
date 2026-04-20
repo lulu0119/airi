@@ -14,8 +14,8 @@ let package = Package(
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.3.0"),
         .package(name: "CapacitorBarcodeScanner", path: "../../../../../node_modules/.pnpm/@capacitor+barcode-scanner@3.0.2_@capacitor+core@8.3.0/node_modules/@capacitor/barcode-scanner"),
         .package(name: "CapacitorLocalNotifications", path: "../../../../../node_modules/.pnpm/@capacitor+local-notifications@8.0.2_@capacitor+core@8.3.0/node_modules/@capacitor/local-notifications"),
-        .package(name: "CapacitorNativeSettings", path: "../../../../../node_modules/.pnpm/capacitor-native-settings@8.1.0_@capacitor+core@8.3.0/node_modules/capacitor-native-settings"),
-        .package(name: "CapacitorPluginAppleIap", path: "../../../../../packages/capacitor-plugin-apple-iap")
+        .package(name: "ProjAiriCapacitorPluginAppleIap", path: "../../../node_modules/@proj-airi/capacitor-plugin-apple-iap"),
+        .package(name: "CapacitorNativeSettings", path: "../../../../../node_modules/.pnpm/capacitor-native-settings@8.1.0_@capacitor+core@8.3.0/node_modules/capacitor-native-settings")
     ],
     targets: [
         .target(
@@ -25,8 +25,8 @@ let package = Package(
                 .product(name: "Cordova", package: "capacitor-swift-pm"),
                 .product(name: "CapacitorBarcodeScanner", package: "CapacitorBarcodeScanner"),
                 .product(name: "CapacitorLocalNotifications", package: "CapacitorLocalNotifications"),
-                .product(name: "CapacitorNativeSettings", package: "CapacitorNativeSettings"),
-                .product(name: "CapacitorPluginAppleIap", package: "CapacitorPluginAppleIap")
+                .product(name: "ProjAiriCapacitorPluginAppleIap", package: "ProjAiriCapacitorPluginAppleIap"),
+                .product(name: "CapacitorNativeSettings", package: "CapacitorNativeSettings")
             ]
         )
     ]
