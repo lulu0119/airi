@@ -27,16 +27,17 @@ const TRUSTED_ORIGIN_PATTERNS = [
 ]
 
 export function getTrustedOrigin(origin: string): string {
+  let resolved: string
   if (!origin)
-    return origin
+    resolved = origin
+  else if (TRUSTED_EXACT_ORIGINS.includes(origin))
+    resolved = origin
+  else if (TRUSTED_ORIGIN_PATTERNS.some(pattern => pattern.test(origin)))
+    resolved = origin
+  else
+    resolved = ''
 
-  if (TRUSTED_EXACT_ORIGINS.includes(origin))
-    return origin
-
-  if (TRUSTED_ORIGIN_PATTERNS.some(pattern => pattern.test(origin)))
-    return origin
-
-  return ''
+  return resolved
 }
 
 export function resolveTrustedRequestOrigin(request: Request): string | undefined {
