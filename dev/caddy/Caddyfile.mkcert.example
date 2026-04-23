@@ -1,0 +1,21 @@
+# Example: replace `tls internal` with mkcert (or other) cert files so phones can trust
+# the same LAN IP you put in VITE_SERVER_URL / API_SERVER_URL.
+#
+#   mkcert localhost 127.0.0.1 192.168.1.42
+#   # note the output paths, then:
+#
+# caddy run --config dev/caddy/Caddyfile.mkcert
+#
+# Adjust paths to your mkcert output files.
+
+:8443 {
+  tls /path/to/localhost+2.pem /path/to/localhost+2-key.pem
+
+  handle /api/* {
+    reverse_proxy 127.0.0.1:3000
+  }
+
+  handle {
+    reverse_proxy 127.0.0.1:5273
+  }
+}
