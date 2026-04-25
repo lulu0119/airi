@@ -22,6 +22,9 @@ const TRUSTED_ORIGIN_PATTERNS = [
   // Vite + mkcert (https://localhost:5273, etc.)
   /^https:\/\/localhost(:\d+)?$/,
   /^https:\/\/127\.0\.0\.1(:\d+)?$/,
+  // Capacitor + Vite on LAN (e.g. https://192.168.1.5:5273) — Referer for full-page /api/auth/*
+  /^https:\/\/192\.168\.\d{1,3}\.\d{1,3}:\d+$/,
+  /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:\d+$/,
   // Cloudflare Workers subdomains
   /^https:\/\/.*\.kwaa\.workers\.dev$/,
 ]
