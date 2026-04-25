@@ -12,6 +12,10 @@ describe('origin utils', () => {
     expect(getTrustedOrigin('https://127.0.0.1:5273')).toBe('https://127.0.0.1:5273')
   })
 
+  it('allows Vite on LAN (Capacitor dev server / mkcert host IP)', () => {
+    expect(getTrustedOrigin('https://192.168.1.5:5273')).toBe('https://192.168.1.5:5273')
+  })
+
   it('rejects untrusted origins', () => {
     expect(getTrustedOrigin('https://example.com')).toBe('')
   })
