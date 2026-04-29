@@ -169,9 +169,9 @@ together with a coordinated client + server release.
 
 - `APPLE_BUNDLE_ID` — production App Store Connect bundle, e.g.
   `ai.moeru.airi-pocket`. Required for `SignedDataVerifier` to construct.
-- `APPLE_IAP_ENV` — `sandbox` (default) or `production`. Controls which JWS
-  `environment` value the verifier accepts (sandbox verifiers also accept
-  `Xcode` / `LocalTesting` for StoreKit Configuration files).
+- `APPLE_IAP_ENV` — `sandbox` (default), `production`, or `xcode`. Use
+  `xcode` for local Xcode StoreKit Configuration files; the Apple verifier
+  treats those JWS payloads as non-App-Store-signed local test data.
 - `configKV.APPLE_IAP_PRODUCTS` — catalog (see above). Seeded manually.
 
 Apple Root CA bundle lives at `apps/server/assets/apple-root-ca/`. The

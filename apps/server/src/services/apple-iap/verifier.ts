@@ -11,7 +11,7 @@ import { createBadRequestError } from '../../utils/error'
 
 const logger = useLogger('apple-iap-verifier')
 
-export type AppleIapEnv = 'sandbox' | 'production'
+export type AppleIapEnv = 'sandbox' | 'production' | 'xcode'
 
 export interface AppleIapVerifierOptions {
   /** App Store bundle identifier, e.g. `ai.moeru.airi-pocket`. */
@@ -58,7 +58,7 @@ export async function createAppleIapVerifier(options: AppleIapVerifierOptions) {
     // flow where an extra HTTP call would tighten the user-perceived latency budget.
     // Root certs are refreshed manually via apps/server/assets/apple-root-ca/README.md.
     false,
-    options.env === 'production' ? Environment.PRODUCTION : Environment.SANDBOX,
+    appleIapEnvironmentToStoreKitEnvironment(options.env),
     options.bundleId,
   )
 
@@ -100,6 +100,27 @@ export async function createAppleIapVerifier(options: AppleIapVerifierOptions) {
 }
 
 export type AppleIapVerifier = Awaited<ReturnType<typeof createAppleIapVerifier>>
+
+/**
+ * Maps AIRI Apple IAP env config to Apple's verifier environment.
+ *
+ * Use when:
+ * - Creating `SignedDataVerifier` for production, sandbox, or Xcode StoreKit
+ *   Configuration File purchases.
+ *
+ * Expects:
+ * - `xcode` is only used for local Xcode `.storekit` purchases.
+ *
+ * Returns:
+ * - The exact `Environment` value required by `@apple/app-store-server-library`.
+ */
+export function appleIapEnvironmentToStoreKitEnvironment(env: AppleIapEnv): Environment {
+  if (env === 'production')
+    return Environment.PRODUCTION
+  if (env === 'xcode')
+    return Environment.XCODE
+  return Environment.SANDBOX
+}
 
 /**
  * In sandbox mode, also accept Xcode StoreKit Configuration and LocalTesting
