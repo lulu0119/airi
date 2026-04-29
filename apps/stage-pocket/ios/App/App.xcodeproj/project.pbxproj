@@ -17,10 +17,10 @@
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
-		A1B2C3D42F10000100AA0007 /* AiriNativeAuthPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F10000100AA0008 /* AiriNativeAuthPlugin.swift */; };
 		A1B2C3D42F10000100AA0001 /* HostWebSocketBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F10000100AA0002 /* HostWebSocketBridge.swift */; };
 		A1B2C3D42F10000100AA0003 /* URLSessionHostWebSocketSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F10000100AA0004 /* URLSessionHostWebSocketSession.swift */; };
 		A1B2C3D42F10000100AA0005 /* WeakScriptMessageHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F10000100AA0006 /* WeakScriptMessageHandler.swift */; };
+		A1B2C3D42F10000100AA0007 /* AiriNativeAuthPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F10000100AA0008 /* AiriNativeAuthPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -36,10 +36,11 @@
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
-		A1B2C3D42F10000100AA0008 /* AiriNativeAuthPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AiriNativeAuthPlugin.swift; sourceTree = "<group>"; };
 		A1B2C3D42F10000100AA0002 /* HostWebSocketBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostWebSocketBridge.swift; sourceTree = "<group>"; };
 		A1B2C3D42F10000100AA0004 /* URLSessionHostWebSocketSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLSessionHostWebSocketSession.swift; sourceTree = "<group>"; };
 		A1B2C3D42F10000100AA0006 /* WeakScriptMessageHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeakScriptMessageHandler.swift; sourceTree = "<group>"; };
+		A1B2C3D42F10000100AA0008 /* AiriNativeAuthPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AiriNativeAuthPlugin.swift; sourceTree = "<group>"; };
+		AF261C9D2FA1BDE00074EF32 /* FluxPackages.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = FluxPackages.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,6 +58,7 @@
 		504EC2FB1FED79650016851F = {
 			isa = PBXGroup;
 			children = (
+				AF261C9D2FA1BDE00074EF32 /* FluxPackages.storekit */,
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
 				504EC3051FED79650016851F /* Products */,
