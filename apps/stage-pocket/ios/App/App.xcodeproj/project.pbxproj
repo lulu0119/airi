@@ -20,6 +20,7 @@
 		A1B2C3D42F10000100AA0001 /* HostWebSocketBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F10000100AA0002 /* HostWebSocketBridge.swift */; };
 		A1B2C3D42F10000100AA0003 /* URLSessionHostWebSocketSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F10000100AA0004 /* URLSessionHostWebSocketSession.swift */; };
 		A1B2C3D42F10000100AA0005 /* WeakScriptMessageHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F10000100AA0006 /* WeakScriptMessageHandler.swift */; };
+		A1B2C3D42F10000100AA0007 /* AiriNativeAuthPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F10000100AA0008 /* AiriNativeAuthPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +39,8 @@
 		A1B2C3D42F10000100AA0002 /* HostWebSocketBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostWebSocketBridge.swift; sourceTree = "<group>"; };
 		A1B2C3D42F10000100AA0004 /* URLSessionHostWebSocketSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLSessionHostWebSocketSession.swift; sourceTree = "<group>"; };
 		A1B2C3D42F10000100AA0006 /* WeakScriptMessageHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeakScriptMessageHandler.swift; sourceTree = "<group>"; };
+		A1B2C3D42F10000100AA0008 /* AiriNativeAuthPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AiriNativeAuthPlugin.swift; sourceTree = "<group>"; };
+		AF261C9D2FA1BDE00074EF32 /* FluxPackages.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = FluxPackages.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -55,6 +58,7 @@
 		504EC2FB1FED79650016851F = {
 			isa = PBXGroup;
 			children = (
+				AF261C9D2FA1BDE00074EF32 /* FluxPackages.storekit */,
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
 				504EC3051FED79650016851F /* Products */,

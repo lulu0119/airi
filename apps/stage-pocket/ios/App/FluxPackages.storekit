@@ -1,0 +1,69 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "3C619B4E",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "A7166C5A",
+      "localizations" : [
+        {
+          "description" : "1000 Flux top-up",
+          "displayName" : "1000 Flux",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "flux.pack.1000",
+      "referenceName" : "1000 Flux",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "71217E36",
+      "localizations" : [
+        {
+          "description" : "3000 Flux top-up",
+          "displayName" : "3000 Flux",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "flux.pack.3000",
+      "referenceName" : " 3000 Flux",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 5,
+    "minor" : 0
+  }
+}
