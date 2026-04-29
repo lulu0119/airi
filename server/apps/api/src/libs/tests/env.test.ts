@@ -170,4 +170,13 @@ describe('parseEnv', () => {
     expect(env.LLM_ROUTER_MASTER_KEY_PREVIOUS?.length).toBe(32)
     expect(env.LLM_ROUTER_MASTER_KEY.equals(env.LLM_ROUTER_MASTER_KEY_PREVIOUS!)).toBe(false)
   })
+
+  it('accepts xcode for local StoreKit configuration transactions', () => {
+    const env = parseEnv({
+      ...baseEnv(),
+      APPLE_IAP_ENV: 'xcode',
+    })
+
+    expect(env.APPLE_IAP_ENV).toBe('xcode')
+  })
 })
