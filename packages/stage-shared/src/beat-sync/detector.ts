@@ -9,7 +9,7 @@ import { defineInvoke, defineInvokeHandler } from '@moeru/eventa'
 import { startAnalyser as startTemporaAnalyser } from '@nekopaw/tempora'
 import { setupElectronScreenCapture } from '@proj-airi/electron-screen-capture/renderer'
 
-import { isStageTamagotchi, isStageWeb, StageEnvironment } from '../environment'
+import { isStageCapacitor, isStageTamagotchi, isStageWeb, StageEnvironment } from '../environment'
 import { isElectronWindow } from '../window'
 import {
   beatSyncBeatSignaledInvokeEventa,
@@ -239,11 +239,12 @@ export function createBeatSyncDetector(options: CreateBeatSyncDetectorOptions): 
 
 let detector: BeatSyncDetector | undefined
 function getDetector() {
-  if (!isStageWeb())
-    throw new Error('getDetector() is only available in Stage Web environment')
+  const env = isStageCapacitor() ? StageEnvironment.Capacitor : StageEnvironment.Web
+  if (!isStageWeb() && !isStageCapacitor())
+    throw new Error('getDetector() is only available in Stage Web or Capacitor environment')
 
   if (!detector)
-    detector = createBeatSyncDetector({ env: StageEnvironment.Web })
+    detector = createBeatSyncDetector({ env })
 
   return detector
 }
@@ -257,7 +258,7 @@ function getContext() {
 }
 
 export function toggleBeatSync(enabled: boolean) {
-  if (isStageWeb()) {
+  if (isStageWeb() || isStageCapacitor()) {
     if (enabled) {
       return getDetector().startScreenCapture()
     }
@@ -275,7 +276,7 @@ export function toggleBeatSync(enabled: boolean) {
 }
 
 export async function getBeatSyncState() {
-  if (isStageWeb()) {
+  if (isStageWeb() || isStageCapacitor()) {
     return getDetector().state
   }
 
@@ -287,7 +288,7 @@ export async function getBeatSyncState() {
 }
 
 export function updateBeatSyncParameters(params: Partial<AnalyserWorkletParameters>) {
-  if (isStageWeb()) {
+  if (isStageWeb() || isStageCapacitor()) {
     return getDetector().updateParameters(params)
   }
 
@@ -299,7 +300,7 @@ export function updateBeatSyncParameters(params: Partial<AnalyserWorkletParamete
 }
 
 export function listenBeatSyncStateChange(listener: (state: BeatSyncDetectorState) => void) {
-  if (isStageWeb()) {
+  if (isStageWeb() || isStageCapacitor()) {
     return getDetector().on('stateChange', listener)
   }
 
@@ -311,7 +312,7 @@ export function listenBeatSyncStateChange(listener: (state: BeatSyncDetectorStat
 }
 
 export function listenBeatSyncBeatSignal(listener: (e: AnalyserBeatEvent) => void) {
-  if (isStageWeb()) {
+  if (isStageWeb() || isStageCapacitor()) {
     return getDetector().on('beat', listener)
   }
 
@@ -323,7 +324,7 @@ export function listenBeatSyncBeatSignal(listener: (e: AnalyserBeatEvent) => voi
 }
 
 export async function getBeatSyncInputByteFrequencyData() {
-  if (isStageWeb()) {
+  if (isStageWeb() || isStageCapacitor()) {
     return getDetector().getInputByteFrequencyData()
   }
 
