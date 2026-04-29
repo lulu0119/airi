@@ -72,7 +72,7 @@ const EnvSchema = object({
 
   // Apple In-App Purchase (StoreKit 2)
   APPLE_BUNDLE_ID: optional(string()),
-  APPLE_IAP_ENV: optional(picklist(['sandbox', 'production']), 'sandbox'),
+  APPLE_IAP_ENV: optional(picklist(['sandbox', 'production', 'xcode']), 'sandbox'),
 
   BILLING_EVENTS_STREAM: optional(string(), DEFAULT_BILLING_EVENTS_STREAM),
   BILLING_EVENTS_CONSUMER_NAME: optional(string()),
