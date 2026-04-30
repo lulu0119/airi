@@ -61,7 +61,6 @@ catalog:
   '@proj-airi/iconify-meteocons': ^0.1.4
   '@proj-airi/unplugin-drizzle-orm-migrations': ^0.1.6
   '@proj-airi/unplugin-fetch': ^0.2.2
-  '@radically-straightforward/caddy': ^2.0.10
   '@shopify/draggable': ^1.2.1
   '@takumi-rs/image-response': 1.0.0-beta.20
   '@types/audioworklet': ^0.0.97
