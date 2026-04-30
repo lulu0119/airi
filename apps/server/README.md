@@ -25,3 +25,13 @@ For local observability infrastructure, use:
 ```sh
 docker compose -f apps/server/docker-compose.otel.yml up -d
 ```
+
+## Local Postgres + Redis
+
+```sh
+docker compose -f apps/server/docker-compose.yml up -d db redis
+```
+
+Point `DATABASE_URL` / `REDIS_URL` in `apps/server/.env.local` at these services (see `docker-compose.yml` for port and default password). Run `pnpm -F @proj-airi/server dev`; migrations apply automatically on startup.
+
+**Do not** run `drizzle-kit push` against the same database and then rely on startup migrations — that leaves tables in place with an empty `drizzle.__drizzle_migrations` journal and the process will refuse to start. If you are in that state, reset the volume: `docker compose -f apps/server/docker-compose.yml down -v`, then `up -d db redis` again.
