@@ -17,7 +17,7 @@ const TRUSTED_EXACT_ORIGINS = [
 
 // NOTICE:
 // Private LAN / CGNAT-style dev hosts (e.g. https://10.x:5273 from cap-vite) are NOT matched
-// by regex here — list them explicitly via env `ADDITIONAL_TRUSTED_ORIGINS` (see env.ts).
+// by regex here — set env `DEV_UI_ORIGIN` to that origin (see env.ts).
 const TRUSTED_ORIGIN_PATTERNS = [
   // Localhost dev (any port)
   /^http:\/\/localhost(:\d+)?$/,
@@ -31,24 +31,24 @@ const TRUSTED_ORIGIN_PATTERNS = [
 ]
 
 /**
- * Returns `origin` when it matches built-in trust rules or `additionalTrustedOrigins`.
+ * Returns `origin` when it matches built-in trust rules or `devUiOrigin`.
  *
  * Use when:
  * - CORS allowlists (`/api/*`) or Stripe redirect base resolution need the same rules as Better Auth.
  *
  * Expects:
  * - `origin` is the raw `Origin` header value or `new URL(referer).origin`.
- * - `additionalTrustedOrigins` entries are normalized origins (see {@link parseAdditionalTrustedOriginsEnv}).
+ * - `devUiOrigin` from {@link parseDevUiOriginEnv} (empty when unset).
  *
  * Returns:
  * - The same origin string when trusted, or `''` when not trusted.
  */
-export function getTrustedOrigin(origin: string, additionalTrustedOrigins: readonly string[] = []): string {
+export function getTrustedOrigin(origin: string, devUiOrigin = ''): string {
   if (!origin)
     return origin
   if (TRUSTED_EXACT_ORIGINS.includes(origin))
     return origin
-  if (additionalTrustedOrigins.includes(origin))
+  if (devUiOrigin && origin === devUiOrigin)
     return origin
   if (TRUSTED_ORIGIN_PATTERNS.some(pattern => pattern.test(origin)))
     return origin
@@ -66,18 +66,18 @@ export function getTrustedOrigin(origin: string, additionalTrustedOrigins: reado
  */
 export function resolveTrustedRequestOrigin(
   request: Request,
-  additionalTrustedOrigins: readonly string[] = [],
+  devUiOrigin = '',
 ): string | undefined {
   const refererOrigin = getOriginFromUrl(request.headers.get('referer') ?? '')
   if (refererOrigin) {
-    const trustedRefererOrigin = getTrustedOrigin(refererOrigin, additionalTrustedOrigins)
+    const trustedRefererOrigin = getTrustedOrigin(refererOrigin, devUiOrigin)
     if (trustedRefererOrigin) {
       return trustedRefererOrigin
     }
   }
 
   const requestOrigin = request.headers.get('origin') ?? ''
-  const trustedRequestOrigin = getTrustedOrigin(requestOrigin, additionalTrustedOrigins)
+  const trustedRequestOrigin = getTrustedOrigin(requestOrigin, devUiOrigin)
   if (trustedRequestOrigin) {
     return trustedRequestOrigin
   }
@@ -106,14 +106,14 @@ const ALWAYS_TRUSTED_AUTH_ORIGINS = [
  * Builds the origin list passed to Better Auth `trustedOrigins` (and related flows).
  *
  * Expects:
- * - `env.API_SERVER_URL` and parsed `env.ADDITIONAL_TRUSTED_ORIGINS`.
+ * - `env.API_SERVER_URL` and optional `env.DEV_UI_ORIGIN`.
  * - Optional `request` so the caller's Origin/Referer can be merged when known.
  *
  * Returns:
  * - De-duplicated origins in insertion order (API URL, env extras, localhost wildcards, then request-derived).
  */
 export function getAuthTrustedOrigins(
-  env: Pick<Env, 'API_SERVER_URL' | 'ADDITIONAL_TRUSTED_ORIGINS'>,
+  env: Pick<Env, 'API_SERVER_URL' | 'DEV_UI_ORIGIN'>,
   request?: Request,
 ): string[] {
   const origins = new Set<string>()
@@ -122,8 +122,8 @@ export function getAuthTrustedOrigins(
     origins.add(apiServerOrigin)
   }
 
-  for (const origin of env.ADDITIONAL_TRUSTED_ORIGINS) {
-    origins.add(origin)
+  if (env.DEV_UI_ORIGIN) {
+    origins.add(env.DEV_UI_ORIGIN)
   }
 
   for (const origin of ALWAYS_TRUSTED_AUTH_ORIGINS) {
@@ -131,7 +131,7 @@ export function getAuthTrustedOrigins(
   }
 
   if (request) {
-    const requestOrigin = resolveTrustedRequestOrigin(request, env.ADDITIONAL_TRUSTED_ORIGINS)
+    const requestOrigin = resolveTrustedRequestOrigin(request, env.DEV_UI_ORIGIN)
     if (requestOrigin) {
       origins.add(requestOrigin)
     }

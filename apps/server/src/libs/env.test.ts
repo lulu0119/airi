@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseAdditionalTrustedOriginsEnv, parseEnv } from './env'
+import { parseDevUiOriginEnv, parseEnv } from './env'
 
 function baseEnv(): Record<string, string> {
   return {
@@ -17,20 +17,23 @@ function baseEnv(): Record<string, string> {
   }
 }
 
-describe('parseAdditionalTrustedOriginsEnv', () => {
-  it('normalizes comma-separated origins and dedupes', () => {
-    expect(parseAdditionalTrustedOriginsEnv('')).toEqual([])
-    expect(parseAdditionalTrustedOriginsEnv(' https://10.0.0.129:5273/ , https://198.18.0.1:5273 ')).toEqual([
-      'https://10.0.0.129:5273',
-      'https://198.18.0.1:5273',
-    ])
-    expect(parseAdditionalTrustedOriginsEnv('https://x.test:5273/,https://x.test:5273')).toEqual([
-      'https://x.test:5273',
-    ])
+describe('parseDevUiOriginEnv', () => {
+  it('normalizes a single origin', () => {
+    expect(parseDevUiOriginEnv('')).toBe('')
+    expect(parseDevUiOriginEnv(' https://10.0.0.129:5273/ ')).toBe('https://10.0.0.129:5273')
   })
 
-  it('throws on invalid segments', () => {
-    expect(() => parseAdditionalTrustedOriginsEnv('not-a-url')).toThrow(/invalid URL origin segment/)
+  it('rejects comma-separated lists', () => {
+    expect(() => parseDevUiOriginEnv('https://10.0.0.129:5273,https://198.18.0.1:5273')).toThrow(/single origin/)
+  })
+
+  it('throws on invalid URLs', () => {
+    expect(() => parseDevUiOriginEnv('not-a-url')).toThrow(/invalid URL origin/)
+  })
+
+  it('rejects non-http(s) schemes', () => {
+    expect(() => parseDevUiOriginEnv('localhost:5173')).toThrow(/http\(s\)/)
+    expect(() => parseDevUiOriginEnv('javascript:alert(1)')).toThrow(/http\(s\)/)
   })
 })
 
@@ -40,18 +43,15 @@ describe('parseEnv', () => {
 
     expect(env.DATABASE_URL).toBe('postgres://example')
     expect(env.REDIS_URL).toBe('redis://example')
-    expect(env.ADDITIONAL_TRUSTED_ORIGINS).toEqual([])
+    expect(env.DEV_UI_ORIGIN).toBe('')
   })
 
-  it('parses ADDITIONAL_TRUSTED_ORIGINS into a normalized origin list', () => {
+  it('parses DEV_UI_ORIGIN into a normalized origin', () => {
     const env = parseEnv({
       ...baseEnv(),
-      ADDITIONAL_TRUSTED_ORIGINS: 'https://10.0.0.129:5273/, https://198.18.0.1:5273',
+      DEV_UI_ORIGIN: 'https://10.0.0.129:5273/',
     })
 
-    expect(env.ADDITIONAL_TRUSTED_ORIGINS).toEqual([
-      'https://10.0.0.129:5273',
-      'https://198.18.0.1:5273',
-    ])
+    expect(env.DEV_UI_ORIGIN).toBe('https://10.0.0.129:5273')
   })
 })

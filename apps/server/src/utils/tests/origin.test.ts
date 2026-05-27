@@ -12,15 +12,9 @@ describe('origin utils', () => {
     expect(getTrustedOrigin('https://127.0.0.1:5273')).toBe('https://127.0.0.1:5273')
   })
 
-  it('rejects private LAN Vite dev origins unless listed in ADDITIONAL_TRUSTED_ORIGINS', () => {
+  it('rejects private LAN Vite dev origins unless listed in DEV_UI_ORIGIN', () => {
     expect(getTrustedOrigin('https://10.0.0.129:5273')).toBe('')
-    expect(getTrustedOrigin('https://198.18.0.1:5273')).toBe('')
-    expect(getTrustedOrigin('https://192.168.1.5:5273')).toBe('')
-
-    const extra = ['https://10.0.0.129:5273', 'https://198.18.0.1:5273', 'https://192.168.1.5:5273']
-    expect(getTrustedOrigin('https://10.0.0.129:5273', extra)).toBe('https://10.0.0.129:5273')
-    expect(getTrustedOrigin('https://198.18.0.1:5273', extra)).toBe('https://198.18.0.1:5273')
-    expect(getTrustedOrigin('https://192.168.1.5:5273', extra)).toBe('https://192.168.1.5:5273')
+    expect(getTrustedOrigin('https://10.0.0.129:5273', 'https://10.0.0.129:5273')).toBe('https://10.0.0.129:5273')
   })
 
   it('rejects untrusted origins', () => {
@@ -57,7 +51,7 @@ describe('origin utils', () => {
 
     expect(getAuthTrustedOrigins({
       API_SERVER_URL: 'https://api.airi.moeru.ai',
-      ADDITIONAL_TRUSTED_ORIGINS: [],
+      DEV_UI_ORIGIN: '',
     }, request)).toEqual([
       'https://api.airi.moeru.ai',
       'http://localhost:*',
@@ -66,10 +60,10 @@ describe('origin utils', () => {
     ])
   })
 
-  it('includes ADDITIONAL_TRUSTED_ORIGINS in Better Auth trustedOrigins list', () => {
+  it('includes DEV_UI_ORIGIN in Better Auth trustedOrigins list', () => {
     expect(getAuthTrustedOrigins({
       API_SERVER_URL: 'https://api.airi.moeru.ai',
-      ADDITIONAL_TRUSTED_ORIGINS: ['https://10.0.0.129:5273'],
+      DEV_UI_ORIGIN: 'https://10.0.0.129:5273',
     })).toEqual([
       'https://api.airi.moeru.ai',
       'https://10.0.0.129:5273',

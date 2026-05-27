@@ -9,44 +9,37 @@ import { integer, maxValue, minValue, nonEmpty, object, optional, parse, pipe, s
 import { DEFAULT_BILLING_EVENTS_STREAM } from '../utils/redis-keys'
 
 /**
- * Parses `ADDITIONAL_TRUSTED_ORIGINS`: comma-separated absolute origins used for
- * CORS (`/api/*`) and request-derived trusted bases (e.g. Stripe return URLs).
- * Each segment is normalized via `URL.origin` so trailing slashes are stripped.
+ * Parses `DEV_UI_ORIGIN`: single absolute origin for CORS and request-derived trusted bases.
+ * Normalized via `URL.origin`.
  *
  * Before:
- * - `" https://10.0.0.129:5273/ , https://198.18.0.1:5273 "`
+ * - `" https://10.0.0.129:5273/ "`
  *
  * After:
- * - `["https://10.0.0.129:5273", "https://198.18.0.1:5273"]`
+ * - `"https://10.0.0.129:5273"`
  */
-export function parseAdditionalTrustedOriginsEnv(raw: string): string[] {
+export function parseDevUiOriginEnv(raw: string): string {
   const trimmed = raw.trim()
   if (!trimmed)
-    return []
+    return ''
 
-  const seen = new Set<string>()
-  const out: string[] = []
-
-  for (const part of trimmed.split(',')) {
-    const entry = part.trim()
-    if (!entry)
-      continue
-
-    let normalized: string
-    try {
-      normalized = new URL(entry).origin
-    }
-    catch {
-      throw new TypeError(`ADDITIONAL_TRUSTED_ORIGINS: invalid URL origin segment "${entry}"`)
-    }
-
-    if (!seen.has(normalized)) {
-      seen.add(normalized)
-      out.push(normalized)
-    }
+  if (trimmed.includes(',')) {
+    throw new TypeError('DEV_UI_ORIGIN: expected a single origin, not a comma-separated list')
   }
 
-  return out
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  }
+  catch {
+    throw new TypeError(`DEV_UI_ORIGIN: invalid URL origin "${trimmed}"`)
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new TypeError(`DEV_UI_ORIGIN: expected an http(s) origin, got "${parsed.protocol}"`)
+  }
+
+  return parsed.origin
 }
 
 function optionalIntegerFromString(defaultValue: number, envKey: string, minimum: number) {
@@ -81,12 +74,11 @@ const EnvSchema = object({
 
   API_SERVER_URL: optional(string(), 'http://localhost:3000'),
 
-  // Comma-separated exact origins (e.g. Capacitor dev server `https://10.x:5273`).
-  // Prefer this over broad private-IP regex heuristics in production-like configs.
-  ADDITIONAL_TRUSTED_ORIGINS: optional(
+  // Dev UI origin for LAN Capacitor/Vite (e.g. `https://10.x:5273`). Empty in production.
+  DEV_UI_ORIGIN: optional(
     pipe(
       string(),
-      transform(raw => parseAdditionalTrustedOriginsEnv(raw)),
+      transform(raw => parseDevUiOriginEnv(raw)),
     ),
     '',
   ),

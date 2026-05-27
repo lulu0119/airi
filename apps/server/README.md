@@ -26,10 +26,10 @@ For local observability infrastructure, use:
 docker compose -f apps/server/docker-compose.otel.yml up -d
 ```
 
-## `ADDITIONAL_TRUSTED_ORIGINS` (LAN / Capacitor dev)
+## `DEV_UI_ORIGIN` (LAN / Capacitor dev)
 
-When the mobile dev server uses a non-localhost origin (for example `https://10.x.x.x:5273` from `cap copy ios` / `capacitor.config.json`), set **`ADDITIONAL_TRUSTED_ORIGINS`** in `apps/server/.env.local` to a comma-separated list of exact origins (parsed and normalized at startup). Example:
+When the mobile dev server uses a non-localhost origin (for example `https://10.x.x.x:5273` from Capacitor live reload), set **`DEV_UI_ORIGIN`** in `apps/server/.env.local` to that origin (normalized at startup). Example:
 
-`ADDITIONAL_TRUSTED_ORIGINS=https://10.0.0.129:5273,https://198.18.0.1:5273`
+`DEV_UI_ORIGIN=https://10.0.0.129:5273`
 
 Restart the API server after changing this variable.

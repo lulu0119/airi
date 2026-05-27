@@ -135,7 +135,7 @@ export async function createAuthRoutes(deps: AuthRoutesDeps) {
       routeLabel: 'auth.api',
     }))
     .use('/api/auth/oauth2/authorize', async (c, next) => {
-      await ensureDynamicFirstPartyRedirectUri(deps.db, c.req.raw, deps.env.ADDITIONAL_TRUSTED_ORIGINS)
+      await ensureDynamicFirstPartyRedirectUri(deps.db, c.req.raw, deps.env.DEV_UI_ORIGIN)
       await next()
     })
     .route('/api/auth', createOIDCTokenAuthRoute(deps))
