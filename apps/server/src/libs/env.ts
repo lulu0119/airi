@@ -38,7 +38,6 @@ const EnvSchema = object({
 
   API_SERVER_URL: optional(string(), 'http://localhost:3000'),
 
-  // Dev UI origin for LAN Capacitor/Vite (e.g. `https://10.x:5273`). Empty in production.
   DEV_UI_ORIGIN: optional(string(), ''),
 
   DATABASE_URL: pipe(string(), nonEmpty('DATABASE_URL is required')),

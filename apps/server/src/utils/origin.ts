@@ -15,9 +15,7 @@ const TRUSTED_EXACT_ORIGINS = [
   'https://airi.moeru.ai', // Production
 ]
 
-// NOTICE:
-// Private LAN / CGNAT-style dev hosts (e.g. https://10.x:5273 from cap-vite) are NOT matched
-// by regex here — set env `DEV_UI_ORIGIN` to that origin (see env.ts).
+// NOTICE: LAN Capacitor dev hosts (e.g. https://10.x:5273) are not matched by regex — set DEV_UI_ORIGIN.
 const TRUSTED_ORIGIN_PATTERNS = [
   // Localhost dev (any port)
   /^http:\/\/localhost(:\d+)?$/,
@@ -30,40 +28,22 @@ const TRUSTED_ORIGIN_PATTERNS = [
   /^https:\/\/.*\.kwaa\.workers\.dev$/,
 ]
 
-/**
- * Returns `origin` when it matches built-in trust rules or `devUiOrigin`.
- *
- * Use when:
- * - CORS allowlists (`/api/*`) or Stripe redirect base resolution need the same rules as Better Auth.
- *
- * Expects:
- * - `origin` is the raw `Origin` header value or `new URL(referer).origin`.
- * - `devUiOrigin` from `env.DEV_UI_ORIGIN` (empty when unset).
- *
- * Returns:
- * - The same origin string when trusted, or `''` when not trusted.
- */
 export function getTrustedOrigin(origin: string, devUiOrigin = ''): string {
   if (!origin)
     return origin
+
   if (TRUSTED_EXACT_ORIGINS.includes(origin))
     return origin
+
   if (devUiOrigin && origin === devUiOrigin)
     return origin
+
   if (TRUSTED_ORIGIN_PATTERNS.some(pattern => pattern.test(origin)))
     return origin
+
   return ''
 }
 
-/**
- * Resolves a trusted browser origin from `Referer` (preferred) or `Origin`.
- *
- * Expects:
- * - Same trust inputs as {@link getTrustedOrigin}.
- *
- * Returns:
- * - The trusted origin string, or `undefined` when neither header yields a trusted origin.
- */
 export function resolveTrustedRequestOrigin(
   request: Request,
   devUiOrigin = '',
@@ -102,16 +82,6 @@ const ALWAYS_TRUSTED_AUTH_ORIGINS = [
   'http://127.0.0.1:*',
 ]
 
-/**
- * Builds the origin list passed to Better Auth `trustedOrigins` (and related flows).
- *
- * Expects:
- * - `env.API_SERVER_URL` and optional `env.DEV_UI_ORIGIN`.
- * - Optional `request` so the caller's Origin/Referer can be merged when known.
- *
- * Returns:
- * - De-duplicated origins in insertion order (API URL, env extras, localhost wildcards, then request-derived).
- */
 export function getAuthTrustedOrigins(
   env: Pick<Env, 'API_SERVER_URL' | 'DEV_UI_ORIGIN'>,
   request?: Request,
