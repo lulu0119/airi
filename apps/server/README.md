@@ -28,7 +28,7 @@ docker compose -f apps/server/docker-compose.otel.yml up -d
 
 ## `DEV_UI_ORIGIN` (LAN / Capacitor dev)
 
-When the mobile dev server uses a non-localhost origin (for example `https://10.x.x.x:5273` from Capacitor live reload), set **`DEV_UI_ORIGIN`** in `apps/server/.env.local` to that origin (normalized at startup). Example:
+When the mobile dev server uses a non-localhost origin (for example `https://10.x.x.x:5273` from Capacitor live reload), set **`DEV_UI_ORIGIN`** in `apps/server/.env.local` to that exact origin. Example:
 
 `DEV_UI_ORIGIN=https://10.0.0.129:5273`
 

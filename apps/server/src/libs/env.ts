@@ -6,42 +6,6 @@ import { useLogger } from '@guiiai/logg'
 import { injeca } from 'injeca'
 import { integer, maxValue, minValue, nonEmpty, object, optional, parse, pipe, string, transform } from 'valibot'
 
-import { DEFAULT_BILLING_EVENTS_STREAM } from '../utils/redis-keys'
-
-/**
- * Parses `DEV_UI_ORIGIN`: single absolute origin for CORS and request-derived trusted bases.
- * Normalized via `URL.origin`.
- *
- * Before:
- * - `" https://10.0.0.129:5273/ "`
- *
- * After:
- * - `"https://10.0.0.129:5273"`
- */
-export function parseDevUiOriginEnv(raw: string): string {
-  const trimmed = raw.trim()
-  if (!trimmed)
-    return ''
-
-  if (trimmed.includes(',')) {
-    throw new TypeError('DEV_UI_ORIGIN: expected a single origin, not a comma-separated list')
-  }
-
-  let parsed: URL
-  try {
-    parsed = new URL(trimmed)
-  }
-  catch {
-    throw new TypeError(`DEV_UI_ORIGIN: invalid URL origin "${trimmed}"`)
-  }
-
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new TypeError(`DEV_UI_ORIGIN: expected an http(s) origin, got "${parsed.protocol}"`)
-  }
-
-  return parsed.origin
-}
-
 function optionalIntegerFromString(defaultValue: number, envKey: string, minimum: number) {
   return optional(
     pipe(
@@ -75,13 +39,7 @@ const EnvSchema = object({
   API_SERVER_URL: optional(string(), 'http://localhost:3000'),
 
   // Dev UI origin for LAN Capacitor/Vite (e.g. `https://10.x:5273`). Empty in production.
-  DEV_UI_ORIGIN: optional(
-    pipe(
-      string(),
-      transform(raw => parseDevUiOriginEnv(raw)),
-    ),
-    '',
-  ),
+  DEV_UI_ORIGIN: optional(string(), ''),
 
   DATABASE_URL: pipe(string(), nonEmpty('DATABASE_URL is required')),
   REDIS_URL: pipe(string(), nonEmpty('REDIS_URL is required')),

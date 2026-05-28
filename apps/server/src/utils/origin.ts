@@ -38,7 +38,7 @@ const TRUSTED_ORIGIN_PATTERNS = [
  *
  * Expects:
  * - `origin` is the raw `Origin` header value or `new URL(referer).origin`.
- * - `devUiOrigin` from {@link parseDevUiOriginEnv} (empty when unset).
+ * - `devUiOrigin` from `env.DEV_UI_ORIGIN` (empty when unset).
  *
  * Returns:
  * - The same origin string when trusted, or `''` when not trusted.

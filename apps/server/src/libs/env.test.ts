@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseDevUiOriginEnv, parseEnv } from './env'
+import { parseEnv } from './env'
 
 function baseEnv(): Record<string, string> {
   return {
@@ -17,26 +17,6 @@ function baseEnv(): Record<string, string> {
   }
 }
 
-describe('parseDevUiOriginEnv', () => {
-  it('normalizes a single origin', () => {
-    expect(parseDevUiOriginEnv('')).toBe('')
-    expect(parseDevUiOriginEnv(' https://10.0.0.129:5273/ ')).toBe('https://10.0.0.129:5273')
-  })
-
-  it('rejects comma-separated lists', () => {
-    expect(() => parseDevUiOriginEnv('https://10.0.0.129:5273,https://198.18.0.1:5273')).toThrow(/single origin/)
-  })
-
-  it('throws on invalid URLs', () => {
-    expect(() => parseDevUiOriginEnv('not-a-url')).toThrow(/invalid URL origin/)
-  })
-
-  it('rejects non-http(s) schemes', () => {
-    expect(() => parseDevUiOriginEnv('localhost:5173')).toThrow(/http\(s\)/)
-    expect(() => parseDevUiOriginEnv('javascript:alert(1)')).toThrow(/http\(s\)/)
-  })
-})
-
 describe('parseEnv', () => {
   it('parses the required auth and infrastructure environment variables', () => {
     const env = parseEnv(baseEnv())
@@ -46,10 +26,10 @@ describe('parseEnv', () => {
     expect(env.DEV_UI_ORIGIN).toBe('')
   })
 
-  it('parses DEV_UI_ORIGIN into a normalized origin', () => {
+  it('passes DEV_UI_ORIGIN through as a string', () => {
     const env = parseEnv({
       ...baseEnv(),
-      DEV_UI_ORIGIN: 'https://10.0.0.129:5273/',
+      DEV_UI_ORIGIN: 'https://10.0.0.129:5273',
     })
 
     expect(env.DEV_UI_ORIGIN).toBe('https://10.0.0.129:5273')
