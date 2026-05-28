@@ -31,23 +31,16 @@ const TRUSTED_ORIGIN_PATTERNS = [
 export function getTrustedOrigin(origin: string, devUiOrigin = ''): string {
   if (!origin)
     return origin
-
   if (TRUSTED_EXACT_ORIGINS.includes(origin))
     return origin
-
   if (devUiOrigin && origin === devUiOrigin)
     return origin
-
   if (TRUSTED_ORIGIN_PATTERNS.some(pattern => pattern.test(origin)))
     return origin
-
   return ''
 }
 
-export function resolveTrustedRequestOrigin(
-  request: Request,
-  devUiOrigin = '',
-): string | undefined {
+export function resolveTrustedRequestOrigin(request: Request, devUiOrigin = ''): string | undefined {
   const refererOrigin = getOriginFromUrl(request.headers.get('referer') ?? '')
   if (refererOrigin) {
     const trustedRefererOrigin = getTrustedOrigin(refererOrigin, devUiOrigin)
@@ -82,10 +75,7 @@ const ALWAYS_TRUSTED_AUTH_ORIGINS = [
   'http://127.0.0.1:*',
 ]
 
-export function getAuthTrustedOrigins(
-  env: Pick<Env, 'API_SERVER_URL' | 'DEV_UI_ORIGIN'>,
-  request?: Request,
-): string[] {
+export function getAuthTrustedOrigins(env: Pick<Env, 'API_SERVER_URL' | 'DEV_UI_ORIGIN'>, request?: Request): string[] {
   const origins = new Set<string>()
   const apiServerOrigin = getOriginFromUrl(env.API_SERVER_URL)
   if (apiServerOrigin) {
