@@ -15,6 +15,7 @@ import type { ProductEventService } from './services/domain/product-events'
 import type { ProviderCatalogService } from './services/domain/provider-catalog'
 import type { ProviderService } from './services/domain/providers'
 import type { RequestLogService } from './services/domain/request-log'
+import type { SubscriptionService } from './services/domain/subscription'
 import type { UserDeletionService } from './services/domain/user-deletion'
 import type { VoicePackService } from './services/domain/voice-packs'
 import type { HonoEnv } from './types/hono'
@@ -69,6 +70,7 @@ import { createProductEventService } from './services/domain/product-events'
 import { createProviderCatalogService } from './services/domain/provider-catalog'
 import { createProviderService } from './services/domain/providers'
 import { createRequestLogService } from './services/domain/request-log'
+import { createSubscriptionService } from './services/domain/subscription'
 import { createUserDeletionService } from './services/domain/user-deletion'
 import { createVoicePackService } from './services/domain/voice-packs'
 import { createEnvelopeCrypto } from './utils/envelope-crypto'
@@ -83,6 +85,7 @@ interface AppDeps {
   providerService: ProviderService
   fluxService: FluxService
   fluxTransactionService: FluxTransactionService
+  subscriptionService: SubscriptionService
   paymentService: PaymentService
   stripeAdapter: PaymentProvider
   stripe: Stripe | null
@@ -355,7 +358,7 @@ export async function buildApp(deps: AppDeps) {
     /**
      * Flux routes.
      */
-    .route('/api/v1/flux', createFluxRoutes(deps.fluxService, deps.fluxTransactionService))
+    .route('/api/v1/flux', createFluxRoutes(deps.fluxService, deps.fluxTransactionService, deps.subscriptionService))
 
     /**
      * Stripe routes.
@@ -364,6 +367,7 @@ export async function buildApp(deps: AppDeps) {
       payment: deps.paymentService,
       stripeAdapter: deps.stripeAdapter,
       stripe: deps.stripe,
+      configKV: deps.configKV,
       env: deps.env,
       metrics: deps.otel?.revenue,
       rateLimitMetrics: deps.otel?.rateLimit,
@@ -551,9 +555,14 @@ export async function createApp() {
     build: ({ dependsOn }) => createStripePaymentProvider(dependsOn.stripe, dependsOn.configKV),
   })
 
-  const fluxTransactionService = injeca.provide('services:fluxTransaction', {
+  const subscriptionService = injeca.provide('services:subscription', {
     dependsOn: { db },
-    build: ({ dependsOn }) => createFluxTransactionService(dependsOn.db),
+    build: ({ dependsOn }) => createSubscriptionService({ db: dependsOn.db }),
+  })
+
+  const fluxTransactionService = injeca.provide('services:fluxTransaction', {
+    dependsOn: { db, subscriptionService },
+    build: ({ dependsOn }) => createFluxTransactionService(dependsOn.db, dependsOn.subscriptionService),
   })
 
   const fluxService = injeca.provide('services:flux', {
@@ -577,16 +586,23 @@ export async function createApp() {
   })
 
   const billingService = injeca.provide('services:billing', {
-    dependsOn: { db, redis, configKV, otel },
-    build: ({ dependsOn }) => createBillingService(dependsOn.db, dependsOn.redis, dependsOn.configKV, dependsOn.otel?.revenue),
+    dependsOn: { db, redis, configKV, otel, subscriptionService },
+    build: ({ dependsOn }) => createBillingService(
+      dependsOn.db,
+      dependsOn.redis,
+      dependsOn.configKV,
+      dependsOn.otel?.revenue,
+      dependsOn.subscriptionService,
+    ),
   })
 
   const paymentService = injeca.provide('services:payment', {
-    dependsOn: { db, billingService, configKV, stripeAdapter },
+    dependsOn: { db, billingService, configKV, stripeAdapter, subscriptionService },
     build: ({ dependsOn }) => createPaymentService({
       db: dependsOn.db,
       billing: dependsOn.billingService,
       configKV: dependsOn.configKV,
+      subscription: dependsOn.subscriptionService,
       providers: { stripe: dependsOn.stripeAdapter },
     }),
   })
@@ -672,6 +688,7 @@ export async function createApp() {
     providerService,
     fluxService,
     fluxTransactionService,
+    subscriptionService,
     requestLogService,
     voicePackService,
     productEventService,
@@ -702,6 +719,7 @@ export async function createApp() {
     providerService: resolved.providerService,
     fluxService: resolved.fluxService,
     fluxTransactionService: resolved.fluxTransactionService,
+    subscriptionService: resolved.subscriptionService,
     paymentService: resolved.paymentService,
     stripeAdapter: resolved.stripeAdapter,
     stripe: resolved.stripe,

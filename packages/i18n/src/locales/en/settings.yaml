@@ -896,6 +896,18 @@ pages:
     currency: Currency
     description: Current Flux
     packagesError: Failed to load packages. Please try again later.
+    quotaDescription: Period quota remaining
+    balanceRow: Balance
+    resetAt: Resets {date}
+    useBalance: Use your available balance after reaching the usage limits
+    manageSubscription: Manage subscription
+    plans:
+      title: Plans
+      subscribe: Subscribe
+      error: Failed to load plans. Please try again later.
+    hardStop:
+      quotaExhausted: Monthly Flux quota exhausted
+      openFlux: Open Flux settings
     checkout:
       success: Payment successful! Your Flux has been topped up.
       canceled: Payment was canceled.
@@ -910,6 +922,8 @@ pages:
       typeConsumption: Usage
       typeInitial: Initial Grant
       typePromo: Promo Grant
+      sourceBalance: Balance
+      sourceQuota: Period quota
       loading: Loading history...
       empty: No transaction records yet.
       loadMore: Load More

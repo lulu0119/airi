@@ -11,5 +11,12 @@ export const llmRequestLog = pgTable('llm_request_log', {
   fluxConsumed: bigint('flux_consumed', { mode: 'number' }).notNull(),
   promptTokens: integer('prompt_tokens'),
   completionTokens: integer('completion_tokens'),
+  /**
+   * Billing source for this request.
+   * - `quota`: charged against subscription period quota (no flux_transaction)
+   * - `balance`: charged against user_flux (ledger also written)
+   * Null for non-billable / failed pre-settle logs.
+   */
+  source: text('source'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })

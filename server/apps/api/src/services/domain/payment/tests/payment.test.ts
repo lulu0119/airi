@@ -9,6 +9,7 @@ import { mockDB } from '../../../../libs/mock-db'
 import { createTestRedis } from '../../../../libs/tests/redis'
 import { userFluxRedisKey } from '../../../../utils/redis-keys'
 import { createBillingService } from '../../billing/billing-service'
+import { createSubscriptionService } from '../../subscription'
 import { createFakePaymentProvider } from '../adapters/fake'
 import { createPaymentService } from '../index'
 
@@ -61,11 +62,14 @@ describe('payment CORE', () => {
     configKV = createPacksConfigKV([starterPack])
     applyDuringCreate = false
     const billing = createBillingService(db, redis, configKV)
+    const subscription = createSubscriptionService({ db })
 
     let service: ReturnType<typeof createPaymentService>
     const fake = createFakePaymentProvider({
       onCreate: async (input) => {
         if (!applyDuringCreate)
+          return
+        if (input.kind !== 'pack')
           return
         await service.applyConfirmation({
           provider: 'fake',
@@ -83,6 +87,7 @@ describe('payment CORE', () => {
       db,
       billing,
       configKV,
+      subscription,
       providers: { fake },
     })
     payment = service
@@ -91,6 +96,7 @@ describe('payment CORE', () => {
     await db.delete(schema.userFlux).where(eq(schema.userFlux.userId, 'user-pay-1'))
     await db.delete(schema.paymentOrder).where(eq(schema.paymentOrder.userId, 'user-pay-1'))
     await db.delete(schema.providerAccount).where(eq(schema.providerAccount.userId, 'user-pay-1'))
+    await db.delete(schema.subscription).where(eq(schema.subscription.userId, 'user-pay-1'))
   })
 
   async function startStarterPack() {

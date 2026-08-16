@@ -18,6 +18,7 @@ export const paymentOrder = pgTable('payment_order', {
   amount: integer('amount'),
   currency: text('currency'),
   packKey: text('pack_key'),
+  planKey: text('plan_key'),
   fluxAmount: bigint('flux_amount', { mode: 'number' }),
   subscriptionId: text('subscription_id'),
   creditedAt: timestamp('credited_at'),

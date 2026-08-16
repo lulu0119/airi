@@ -10,6 +10,7 @@ export interface RequestLogEntry {
   fluxConsumed: number
   promptTokens?: number
   completionTokens?: number
+  source?: 'quota' | 'balance'
 }
 
 export function createRequestLogService(db: Database) {

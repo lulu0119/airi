@@ -505,8 +505,9 @@ function streamChatCompletion(input: {
         // returned `charged < requested` and accounted to the same
         // `fluxUnbilled` counter (different `reason` label).
         let actualCharged = 0
+        let billingSource: 'quota' | 'balance' | undefined
         try {
-          actualCharged = await input.billing.settleChat({
+          const settled = await input.billing.settleChat({
             userId: input.userId,
             amount: fluxConsumed,
             requestId: input.requestId,
@@ -515,6 +516,8 @@ function streamChatCompletion(input: {
             logger: input.logger,
             ...usage,
           })
+          actualCharged = settled.charged
+          billingSource = settled.source
         }
         catch (err) {
           // Real revenue leak: streaming response already sent (HTTP 200,
@@ -533,6 +536,7 @@ function streamChatCompletion(input: {
           fluxConsumed: actualCharged,
           promptTokens: usage.promptTokens,
           completionTokens: usage.completionTokens,
+          source: billingSource,
         })
         void input.deps.productEventService.track({
           userId: input.userId,
@@ -652,7 +656,7 @@ async function completeNonStreamingChat(input: {
   // The upstream call has already happened (cost incurred), so partial
   // debit + `fluxUnbilled` is the only sane recovery — same shape as the
   // streaming path. `balance <= 0` still throws and bubbles up as 402.
-  const actualCharged = await input.billing.settleChat({
+  const settled = await input.billing.settleChat({
     userId: input.userId,
     amount: fluxConsumed,
     requestId: input.requestId,
@@ -661,6 +665,7 @@ async function completeNonStreamingChat(input: {
     logger: input.logger,
     ...usage,
   })
+  const actualCharged = settled.charged
 
   input.telemetry.recordRequestLog({
     userId: input.userId,
@@ -670,6 +675,7 @@ async function completeNonStreamingChat(input: {
     fluxConsumed: actualCharged,
     promptTokens: usage.promptTokens,
     completionTokens: usage.completionTokens,
+    source: settled.source,
   })
   void input.deps.productEventService.track({
     userId: input.userId,

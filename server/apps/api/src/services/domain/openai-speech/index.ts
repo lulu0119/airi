@@ -281,6 +281,7 @@ export function createOpenAiSpeechService(deps: OpenAiSpeechServiceDeps) {
     }
 
     let fluxConsumed = 0
+    let billingSource: 'quota' | 'balance' | undefined
     try {
       const result = await deps.ttsMeter.accumulate({
         userId: input.userId,
@@ -290,6 +291,7 @@ export function createOpenAiSpeechService(deps: OpenAiSpeechServiceDeps) {
         metadata: { model: requestModel, costMultiplier: voicePackRequest.costMultiplier },
       })
       fluxConsumed = result.fluxDebited
+      billingSource = result.source
       span.setAttribute(AIRI_ATTR_BILLING_FLUX_CONSUMED, fluxConsumed)
       generationTrace.succeed({
         inputChars: inputText.length,
@@ -331,6 +333,7 @@ export function createOpenAiSpeechService(deps: OpenAiSpeechServiceDeps) {
       status: response.status,
       durationMs,
       fluxConsumed,
+      source: billingSource,
     }).catch(err => logger.withError(err).warn('Failed to write llm_request_log row'))
 
     logger.withFields({
