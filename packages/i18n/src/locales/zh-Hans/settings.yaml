@@ -44,8 +44,8 @@ dialogs:
     loginPrompt: 登录并使用 AIRI 官方提供的服务以获得最佳体验。
     loginAction: 登录
     setupWithoutSigningIn: 配置您自己的 AI 服务来源
-    flux: Flux 电量
-    buyFlux: 补充 Flux 电量
+    flux: Flux
+    buyFlux: 补充 Flux
     select-model: 选择模型
     no-models: 找不到可用模型
     no-models-help: >-
@@ -207,7 +207,7 @@ pages:
     notLoggedIn: 登录以查看您的帐户并访问所有功能
     login: 登录
     logout: 登出
-    fluxBalance: 剩余通量
+    fluxBalance: Flux 余额
     viewFluxDetails: 查看详情
     signedInAs: 登录 为
     profile:
@@ -858,9 +858,9 @@ pages:
     buy: 充值
     currency: 币种
     description: 充值 Flux
-    packagesError: 暂时无法获取可用的 Flux 电量包。可以之后再试试吗？
+    packagesError: 暂时无法获取可用的 Flux 包。可以之后再试试吗？
     checkout:
-      success: 谢谢你！你的 Flux 通量已经更新好啦～
+      success: 谢谢你！你的 Flux 已经更新好啦～
       canceled: 支付被取消
       error: 哎呀，出错了，请稍后再试
     audit:
@@ -876,7 +876,7 @@ pages:
       loading: 加载历史...
       empty: 暂无消耗记录
       loadMore: 更多信息
-      delayHint: Flux 电量历史记录是缓慢更新的，可能有延迟
+      delayHint: Flux 历史记录是缓慢更新的，可能有延迟
       ttsRequests: 请求
     packages:
       title: Flux 电池包
