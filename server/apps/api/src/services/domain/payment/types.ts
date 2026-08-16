@@ -11,6 +11,7 @@ export type ClaimStatus = 'paid' | 'canceled' | 'expired'
 export interface CatalogProviderIds {
   stripe?: { priceId: string }
   appleIap?: { productId: string }
+  steam?: { itemId: number }
 }
 
 export interface FluxPack {

@@ -60,7 +60,7 @@ export function createPaymentService(deps: PaymentServiceDeps) {
         case 'apple_iap':
           return item.providers.appleIap?.productId === String(receipt.productId)
         case 'steam':
-          return false
+          return item.providers.steam?.itemId === Number(receipt.productId)
         default: {
           const exhaustive: never = receipt.provider
           throw createInternalError(`Unhandled evidence provider: ${String(exhaustive)}`)
