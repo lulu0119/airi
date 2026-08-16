@@ -18,7 +18,7 @@ const starterPack: FluxPack = {
   name: '500 Flux',
   fluxAmount: 500,
   recommended: false,
-  providers: { stripe: { priceId: 'price_starter' }, appleIap: { productId: 'flux.pack.500' } },
+  providers: { stripe: { priceId: 'price_starter' }, appleIap: { productId: 'flux.pack.500' }, steam: { itemId: 1001 } },
 }
 
 function createTestPaymentProvider(options?: {
@@ -257,6 +257,12 @@ describe('payment CORE', () => {
 
   it('resolvePack finds a pack by Apple product id', async () => {
     await expect(payment.resolvePack({ provider: 'apple_iap', providerProductId: 'flux.pack.500' }))
+      .resolves
+      .toMatchObject({ key: 'starter', fluxAmount: 500 })
+  })
+
+  it('resolvePack finds a pack by Steam item id', async () => {
+    await expect(payment.resolvePack({ provider: 'steam', providerProductId: 1001 }))
       .resolves
       .toMatchObject({ key: 'starter', fluxAmount: 500 })
   })

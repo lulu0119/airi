@@ -93,6 +93,21 @@ const EnvSchema = object({
     minValue(1, 'APPLE_APP_APPLE_ID must be at least 1'),
   )),
 
+  // Steam MicroTxn (ISteamMicroTxn). When STEAM_PUBLISHER_KEY or STEAM_APP_ID
+  // is unset, steam routes stay mounted but return 503 STEAM_MICROTXN_DISABLED.
+  STEAM_PUBLISHER_KEY: optional(string()),
+  STEAM_APP_ID: optional(pipe(
+    string(),
+    nonEmpty('STEAM_APP_ID must not be empty when set'),
+    transform(input => Number(input)),
+    integer('STEAM_APP_ID must be an integer'),
+    minValue(1, 'STEAM_APP_ID must be at least 1'),
+  )),
+  // When true, call ISteamMicroTxnSandbox instead of production.
+  STEAM_MICROTXN_SANDBOX: optional(picklist(['true', 'false', '1', '0']), 'false'),
+  // Bearer secret for POST /api/v1/steam/reports/sync (Railway cron / external worker).
+  STEAM_REPORT_CRON_SECRET: optional(string()),
+
   // LLM/TTS gateway is fully internalised by the in-process router; provider
   // baseURLs live per-upstream inside LLM_ROUTER_CONFIG, and the default chat /
   // tts model aliases moved to configKV (DEFAULT_CHAT_MODEL / DEFAULT_TTS_MODEL)

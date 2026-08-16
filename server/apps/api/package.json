@@ -10,6 +10,7 @@
     "apply:env": "dotenvx run -f .env.local --overload --ignore=MISSING_ENV_FILE",
     "dev": "pnpm run apply:env -- tsx --import ./instrumentation.ts --watch src/main.ts",
     "start": "pnpm run apply:env -- tsx --import ./instrumentation.ts src/main.ts",
+    "steam:report": "pnpm run apply:env -- tsx --import ./instrumentation.ts src/scripts/steam-report-worker.ts",
     "build": "tsc -b",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",

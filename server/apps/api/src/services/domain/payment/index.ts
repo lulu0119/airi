@@ -23,8 +23,14 @@ import * as schema from '../../../schemas/payment'
 
 export { createApplePaymentProvider } from './adapters/apple'
 export { createAppleIapVerifier } from './adapters/apple-verifier'
+export {
+  createSteamPaymentProvider,
+  isSteamRefundShapedStatus,
+} from './adapters/steam'
+export { createSteamMicroTxnClient } from './adapters/steam-client'
 export { createStripePaymentProvider } from './adapters/stripe'
 export type { ApplyConfirmationResult, ConfirmationFacts, FluxPack, FluxPackListItem, PackStartContext, PaymentProvider, StartPackInput, StartPackResult } from './types'
+export { createSteamReportWorker } from './workers/steam-report'
 
 const logger = useLogger('payment')
 
@@ -35,7 +41,11 @@ function catalogProductId(providers: CatalogProviderIds, provider: PaymentProvid
     return providers.stripe?.priceId
   if (provider === 'apple_iap')
     return providers.appleIap?.productId
-  return undefined
+  if (provider === 'steam')
+    return providers.steam?.itemId
+
+  const exhaustive: never = provider
+  return exhaustive
 }
 
 export interface PaymentServiceDeps {
