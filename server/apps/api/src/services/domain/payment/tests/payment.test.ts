@@ -1,6 +1,6 @@
 import type { Database } from '../../../../libs/db'
 import type { ConfigKVService } from '../../../adapters/config-kv'
-import type { FluxPack, PaymentProvider, ProviderCreateInput } from '../types'
+import type { FluxPack, FluxPlan, PaymentProvider, ProviderCreateInput } from '../types'
 
 import { and, eq } from 'drizzle-orm'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,6 +9,7 @@ import { mockDB } from '../../../../libs/mock-db'
 import { createTestRedis } from '../../../../libs/tests/redis'
 import { userFluxRedisKey } from '../../../../utils/redis-keys'
 import { createBillingService } from '../../billing/billing-service'
+import { createSubscriptionService } from '../../subscription'
 import { createPaymentService } from '../index'
 
 import * as schema from '../../../../schemas'
@@ -19,6 +20,17 @@ const starterPack: FluxPack = {
   fluxAmount: 500,
   recommended: false,
   providers: { stripe: { priceId: 'price_starter' }, appleIap: { productId: 'flux.pack.500' }, steam: { itemId: 1001 } },
+}
+
+const plusPlan: FluxPlan = {
+  key: 'plus',
+  name: 'Plus',
+  periodQuota: 1000,
+  periodMonths: 1,
+  recommended: false,
+  defaultCurrency: 'usd',
+  displayPrices: { usd: '$9.99' },
+  providers: { stripe: { priceId: 'price_plus' } },
 }
 
 function createTestPaymentProvider(options?: {
@@ -58,6 +70,8 @@ function createPacksConfigKV(initial: FluxPack[]): ConfigKVService & { setPacks:
     getOptional: vi.fn(async (key: string) => {
       if (key === 'FLUX_PACKS')
         return packs
+      if (key === 'FLUX_PLANS')
+        return [plusPlan]
       return null
     }),
     getOrThrow: vi.fn(),
@@ -91,11 +105,14 @@ describe('payment CORE', () => {
     configKV = createPacksConfigKV([starterPack])
     applyDuringCreate = false
     const billing = createBillingService(db, redis, configKV)
+    const subscription = createSubscriptionService({ db })
 
     let service: ReturnType<typeof createPaymentService>
     const stripe = createTestPaymentProvider({
       onCreate: async (input) => {
         if (!applyDuringCreate)
+          return
+        if (input.kind !== 'pack')
           return
         await service.applyConfirmation({
           provider: 'stripe',
@@ -113,6 +130,7 @@ describe('payment CORE', () => {
       db,
       billing,
       configKV,
+      subscription,
       providers: { stripe },
     })
     payment = service
@@ -121,6 +139,7 @@ describe('payment CORE', () => {
     await db.delete(schema.userFlux).where(eq(schema.userFlux.userId, 'user-pay-1'))
     await db.delete(schema.paymentOrder).where(eq(schema.paymentOrder.userId, 'user-pay-1'))
     await db.delete(schema.providerAccount).where(eq(schema.providerAccount.userId, 'user-pay-1'))
+    await db.delete(schema.subscription).where(eq(schema.subscription.userId, 'user-pay-1'))
   })
 
   async function startStarterPack() {
@@ -187,6 +206,15 @@ describe('payment CORE', () => {
       .resolves
       .toMatchObject({ key: 'starter', fluxAmount: 500 })
     await expect(payment.resolvePack({ provider: 'stripe', providerProductId: 'price_unknown' }))
+      .resolves
+      .toBeNull()
+  })
+
+  it('resolvePlan finds a plan by Stripe price id', async () => {
+    await expect(payment.resolvePlan({ provider: 'stripe', providerProductId: 'price_plus' }))
+      .resolves
+      .toMatchObject({ key: 'plus', periodQuota: 1000 })
+    await expect(payment.resolvePlan({ provider: 'stripe', providerProductId: 'price_unknown' }))
       .resolves
       .toBeNull()
   })

@@ -12,6 +12,7 @@ import { createWebhookOperation } from './operations/webhook'
 function createMockPayment(overrides: Partial<PaymentService> = {}): PaymentService {
   return {
     listPacks: vi.fn(async () => []),
+    listPlans: vi.fn(async () => []),
     resolvePack: vi.fn(async () => ({
       key: 'starter',
       name: '500 Flux',
@@ -19,9 +20,14 @@ function createMockPayment(overrides: Partial<PaymentService> = {}): PaymentServ
       recommended: false,
       providers: { stripe: { priceId: 'price_test_500' } },
     })),
+    resolvePlan: vi.fn(async () => null),
+    getFluxPlanByKey: vi.fn(),
     getProviderAccount: vi.fn(async () => null),
     startPack: vi.fn(async () => ({ kind: 'redirect' as const, url: 'https://checkout.stripe.com/cs_1', paymentOrderId: 'po_1' })),
+    startPlan: vi.fn(async () => ({ kind: 'redirect' as const, url: 'https://checkout.stripe.com/cs_plan', paymentOrderId: 'po_plan' })),
     applyConfirmation: vi.fn(async () => ({ applied: true, userId: 'user-1', fluxAmount: 500, balanceAfter: 500 })),
+    applyPlanInvoice: vi.fn(async () => ({ applied: true, userId: 'user-1', subscriptionId: 'sub_1', periodQuota: 1000 })),
+    endSubscription: vi.fn(async () => ({ ended: true })),
     cancel: vi.fn(),
     deleteAllForUser: vi.fn(),
     ...overrides,
@@ -65,6 +71,13 @@ function createTestApp(
     payment,
     stripeAdapter: createMockStripeAdapter(),
     stripe: envOverrides.STRIPE_SECRET_KEY === '' ? null : stripe,
+    configKV: {
+      getOptional: vi.fn(async () => null),
+      getOrThrow: vi.fn(),
+      get: vi.fn(),
+      refresh: vi.fn(),
+      invalidateCache: vi.fn(),
+    } as any,
     env: { ...testEnv, ...envOverrides },
   })
   const app = new Hono<HonoEnv>()
@@ -143,8 +156,9 @@ describe('stripeRoutes', () => {
       expect(res.status).toBe(400)
     })
 
-    it('returns 400 when planKey is sent', async () => {
-      const app = createTestApp(createMockPayment())
+    it('dispatches planKey onto startPlan', async () => {
+      const payment = createMockPayment()
+      const app = createTestApp(payment)
       const res = await app.fetch(
         new Request('http://localhost/api/v1/stripe/checkout', {
           method: 'POST',
@@ -153,9 +167,12 @@ describe('stripeRoutes', () => {
         }),
         { user: testUser } as any,
       )
-      expect(res.status).toBe(400)
-      const data = await res.json() as any
-      expect(data.error).toBe('PLAN_CHECKOUT_UNAVAILABLE')
+      expect(res.status).toBe(200)
+      expect(payment.startPlan).toHaveBeenCalledWith(expect.objectContaining({
+        planKey: 'pro',
+        provider: 'stripe',
+      }))
+      expect(payment.startPack).not.toHaveBeenCalled()
     })
 
     it('starts a pack checkout from packKey', async () => {
@@ -344,6 +361,13 @@ describe('stripeRoutes', () => {
         webhookSecret: 'whsec_test',
         stripeAdapter,
         payment,
+        configKV: {
+          getOptional: vi.fn(async () => null),
+          getOrThrow: vi.fn(),
+          get: vi.fn(),
+          refresh: vi.fn(),
+          invalidateCache: vi.fn(),
+        } as any,
         productEventService: productEventService as any,
       })
 
@@ -365,9 +389,17 @@ describe('stripeRoutes', () => {
       }))
     })
 
-    it('logs subscription events and does not apply confirmation', async () => {
+    it('ends subscription on deleted and ignores subscription.created', async () => {
       const payment = createMockPayment()
-      const webhook = createWebhookOperation({
+      const configKV = {
+        getOptional: vi.fn(async () => null),
+        getOrThrow: vi.fn(),
+        get: vi.fn(),
+        refresh: vi.fn(),
+        invalidateCache: vi.fn(),
+      } as any
+
+      const created = createWebhookOperation({
         stripe: {
           webhooks: {
             constructEvent: vi.fn(() => ({
@@ -380,10 +412,33 @@ describe('stripeRoutes', () => {
         webhookSecret: 'whsec_test',
         stripeAdapter: createMockStripeAdapter(),
         payment,
+        configKV,
       })
-
-      await webhook({ signature: 'test_sig', body: '{}' })
+      await created({ signature: 'test_sig', body: '{}' })
       expect(payment.applyConfirmation).not.toHaveBeenCalled()
+      expect(payment.endSubscription).not.toHaveBeenCalled()
+
+      const deleted = createWebhookOperation({
+        stripe: {
+          webhooks: {
+            constructEvent: vi.fn(() => ({
+              id: 'evt_sub_del',
+              type: 'customer.subscription.deleted',
+              data: { object: { id: 'sub_1' } },
+            })),
+          },
+        } as any,
+        webhookSecret: 'whsec_test',
+        stripeAdapter: createMockStripeAdapter(),
+        payment,
+        configKV,
+      })
+      await deleted({ signature: 'test_sig', body: '{}' })
+      expect(payment.endSubscription).toHaveBeenCalledWith({
+        provider: 'stripe',
+        providerSubscriptionId: 'sub_1',
+        status: 'ended',
+      })
     })
   })
 })

@@ -79,6 +79,8 @@ interface AccumulateResult {
    * between `requested` and `charged` returned by `billingService.consumeFluxForLLM`.
    */
   unbilledFlux: number
+  /** Present when a whole-Flux debit ran. */
+  source?: 'quota' | 'balance'
 }
 
 /**
@@ -271,10 +273,17 @@ export function createFluxMeter(
         debtAfter: debtAfterRestore,
         balanceAfter: result.flux,
         unbilledFlux,
+        source: result.source,
       }
     }
 
-    return { fluxDebited: result.charged, debtAfter: debtAfterSettlement, balanceAfter: result.flux, unbilledFlux: 0 }
+    return {
+      fluxDebited: result.charged,
+      debtAfter: debtAfterSettlement,
+      balanceAfter: result.flux,
+      unbilledFlux: 0,
+      source: result.source,
+    }
   }
 
   return {

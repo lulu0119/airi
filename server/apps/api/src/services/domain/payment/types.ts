@@ -40,6 +40,28 @@ export interface FluxPackListItem {
   recommended: boolean
 }
 
+export interface FluxPlan {
+  key: string
+  name: string
+  periodQuota: number
+  periodMonths: number
+  recommended: boolean
+  defaultCurrency: string
+  displayPrices: Record<string, string>
+  providers: CatalogProviderIds
+}
+
+export interface FluxPlanListItem {
+  planKey: string
+  stripePriceId?: string
+  label: string
+  periodQuota: number
+  periodMonths: number
+  defaultCurrency: string
+  currencies: Record<string, string>
+  recommended: boolean
+}
+
 export interface PackStartContext {
   currency?: string
   successUrl: string
@@ -48,6 +70,8 @@ export interface PackStartContext {
   metadata?: Record<string, string>
 }
 
+export type PlanStartContext = PackStartContext
+
 export interface StartPackInput {
   userId: string
   provider: PaymentProviderName
@@ -55,11 +79,20 @@ export interface StartPackInput {
   startContext: PackStartContext
 }
 
+export interface StartPlanInput {
+  userId: string
+  provider: PaymentProviderName
+  planKey: string
+  startContext: PlanStartContext
+}
+
 export interface StartPackResult {
   kind: 'redirect'
   url: string
   paymentOrderId: string
 }
+
+export type StartPlanResult = StartPackResult
 
 export interface ConfirmationFacts {
   provider: PaymentProviderName
@@ -83,7 +116,29 @@ export type ApplyConfirmationResult
   = | { applied: true, userId: string, fluxAmount: number, balanceAfter: number }
     | { applied: false }
 
-export interface ProviderCreateInput {
+/**
+ * Facts for a paid subscription invoice. Grants period quota; does not credit balance.
+ */
+export interface PlanInvoiceFacts {
+  provider: PaymentProviderName
+  providerInvoiceId: string
+  providerSubscriptionId: string
+  providerCustomerId?: string
+  userId?: string
+  planKey: string
+  periodQuota: number
+  amount?: number
+  currency?: string
+  paymentOrderId?: string
+  providerData?: Record<string, unknown>
+}
+
+export type ApplyPlanInvoiceResult
+  = | { applied: true, userId: string, subscriptionId: string, periodQuota: number }
+    | { applied: false }
+
+export interface ProviderCreatePackInput {
+  kind: 'pack'
   paymentOrderId: string
   userId: string
   pack: FluxPack
@@ -94,6 +149,21 @@ export interface ProviderCreateInput {
   providerCustomerId?: string | null
   metadata?: Record<string, string>
 }
+
+export interface ProviderCreatePlanInput {
+  kind: 'plan'
+  paymentOrderId: string
+  userId: string
+  plan: FluxPlan
+  currency?: string
+  successUrl: string
+  cancelUrl: string
+  customerEmail?: string
+  providerCustomerId?: string | null
+  metadata?: Record<string, string>
+}
+
+export type ProviderCreateInput = ProviderCreatePackInput | ProviderCreatePlanInput
 
 export interface ProviderCreateResult {
   providerOrderId: string

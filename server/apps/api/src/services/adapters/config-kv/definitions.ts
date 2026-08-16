@@ -263,6 +263,21 @@ export const configEntrySchemas = {
       })),
     }), {}),
   })), []),
+  // Subscription plans. periodQuota is monthly Flux granted each billing period.
+  FLUX_PLANS: optional(array(object({
+    key: pipe(string(), nonEmpty('FLUX_PLANS[].key must not be empty')),
+    name: pipe(string(), nonEmpty('FLUX_PLANS[].name must not be empty')),
+    periodQuota: pipe(number(), minValue(1, 'FLUX_PLANS[].periodQuota must be >= 1')),
+    periodMonths: optional(pipe(number(), minValue(1, 'FLUX_PLANS[].periodMonths must be >= 1')), 1),
+    recommended: optional(boolean(), false),
+    defaultCurrency: pipe(string(), nonEmpty('FLUX_PLANS[].defaultCurrency must not be empty')),
+    displayPrices: record(string(), string()),
+    providers: optional(object({
+      stripe: optional(object({
+        priceId: pipe(string(), nonEmpty('FLUX_PLANS[].providers.stripe.priceId must not be empty')),
+      })),
+    }), {}),
+  })), []),
   // No default — absent means top-up is not available yet
   STRIPE_FLUX_PRODUCT_ID: optional(string()),
   // No default — absent lets Stripe auto-select payment methods via Dashboard config

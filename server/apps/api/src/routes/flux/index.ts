@@ -1,16 +1,23 @@
 import type { FluxService } from '../../services/domain/flux'
 import type { FluxTransactionService } from '../../services/domain/flux-transaction'
+import type { SubscriptionService } from '../../services/domain/subscription'
 import type { HonoEnv } from '../../types/hono'
 
 import { Hono } from 'hono'
-import { parse } from 'valibot'
+import { boolean, object, parse, safeParse } from 'valibot'
 
 import { authGuard } from '../../middlewares/auth'
+import { createBadRequestError } from '../../utils/error'
 import { LimitOffsetPaginationQuerySchema } from '../../utils/http-query'
+
+const UseBalanceBodySchema = object({
+  enabled: boolean(),
+})
 
 export function createFluxRoutes(
   fluxService: FluxService,
   fluxTransactionService: FluxTransactionService,
+  subscriptionService?: SubscriptionService,
 ) {
   return new Hono<HonoEnv>()
     .use('*', authGuard)
@@ -23,6 +30,25 @@ export function createFluxRoutes(
       const user = c.get('user')!
       const stats = await fluxTransactionService.getStats(user.id)
       return c.json(stats)
+    })
+    .put('/use-balance', async (c) => {
+      if (!subscriptionService)
+        throw createBadRequestError('Subscriptions are not available', 'SUBSCRIPTION_UNAVAILABLE')
+
+      const user = c.get('user')!
+      const parsed = safeParse(UseBalanceBodySchema, await c.req.json())
+      if (!parsed.success)
+        throw createBadRequestError('Invalid request', 'INVALID_REQUEST', parsed.issues)
+
+      const snapshot = await subscriptionService.setUseBalance({
+        userId: user.id,
+        enabled: parsed.output.enabled,
+      })
+
+      return c.json({
+        useBalance: snapshot.useBalance,
+        planKey: snapshot.planKey,
+      })
     })
     .get('/history', async (c) => {
       const user = c.get('user')!
@@ -41,6 +67,7 @@ export function createFluxRoutes(
           description: r.description,
           metadata: r.metadata,
           createdAt: r.createdAt.toISOString(),
+          billingSource: r.billingSource,
         })),
         hasMore,
       })

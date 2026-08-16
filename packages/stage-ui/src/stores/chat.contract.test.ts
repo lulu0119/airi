@@ -84,6 +84,12 @@ const streamingMessageRef = ref<any>({ role: 'assistant', content: '', slices: [
 const sessionMessages: Record<string, any[]> = {}
 let currentGeneration = 1
 
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string) => key,
+  }),
+}))
+
 vi.mock('pinia', async () => {
   const actual = await vi.importActual<typeof import('pinia')>('pinia')
   return {

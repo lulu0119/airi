@@ -60,7 +60,7 @@ describe('billingService', () => {
         completionTokens: 80,
       })
 
-      expect(result).toEqual({ userId: 'user-billing-1', flux: 70, charged: 30, requested: 30 })
+      expect(result).toEqual({ userId: 'user-billing-1', flux: 70, charged: 30, requested: 30, source: 'balance' })
 
       // Verify DB balance
       const [fluxRecord] = await db.select().from(schema.userFlux).where(eq(schema.userFlux.userId, 'user-billing-1'))
@@ -115,7 +115,7 @@ describe('billingService', () => {
         description: 'gpt-4',
       })
 
-      expect(result).toEqual({ userId: 'user-billing-1', flux: 0, charged: 5, requested: 38 })
+      expect(result).toEqual({ userId: 'user-billing-1', flux: 0, charged: 5, requested: 38, source: 'balance' })
 
       const [fluxRecord] = await db.select().from(schema.userFlux).where(eq(schema.userFlux.userId, 'user-billing-1'))
       expect(fluxRecord?.flux).toBe(0)

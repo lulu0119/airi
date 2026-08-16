@@ -859,6 +859,18 @@ pages:
     currency: 币种
     description: 充值 Flux
     packagesError: 暂时无法获取可用的 Flux 包。可以之后再试试吗？
+    quotaDescription: 本月额度剩余
+    balanceRow: 余额
+    resetAt: 重置时间 {date}
+    useBalance: 额度用尽后使用余额
+    manageSubscription: 管理订阅
+    plans:
+      title: 订阅计划
+      subscribe: 订阅
+      error: 暂时无法获取订阅计划。可以之后再试试吗？
+    hardStop:
+      quotaExhausted: 本月 Flux 额度已用完
+      openFlux: 打开 Flux 设置
     checkout:
       success: 谢谢你！你的 Flux 已经更新好啦～
       canceled: 支付被取消
@@ -873,6 +885,8 @@ pages:
       typeConsumption: 用量
       typeInitial: 初始额度
       typePromo: Promo Grant
+      sourceBalance: 余额
+      sourceQuota: 订阅额度
       loading: 加载历史...
       empty: 暂无消耗记录
       loadMore: 更多信息

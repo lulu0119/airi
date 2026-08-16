@@ -1,23 +1,30 @@
 import type { Database } from '../../../libs/db'
 import type { ConfigKVService } from '../../adapters/config-kv'
 import type { BillingService } from '../billing/billing-service'
+import type { SubscriptionService } from '../subscription'
 import type {
   ApplyConfirmationResult,
+  ApplyPlanInvoiceResult,
   CatalogProviderIds,
   ConfirmationFacts,
   FluxPack,
   FluxPackListItem,
+  FluxPlan,
+  FluxPlanListItem,
   PaymentProvider,
   PaymentProviderName,
+  PlanInvoiceFacts,
   ProviderProductRef,
   StartPackInput,
   StartPackResult,
+  StartPlanInput,
+  StartPlanResult,
 } from './types'
 
 import { useLogger } from '@guiiai/logg'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 
-import { createBadRequestError, createInternalError, createServiceUnavailableError } from '../../../utils/error'
+import { createBadRequestError, createConflictError, createInternalError, createServiceUnavailableError } from '../../../utils/error'
 
 import * as schema from '../../../schemas/payment'
 
@@ -29,7 +36,22 @@ export {
 } from './adapters/steam'
 export { createSteamMicroTxnClient } from './adapters/steam-client'
 export { createStripePaymentProvider } from './adapters/stripe'
-export type { ApplyConfirmationResult, ConfirmationFacts, FluxPack, FluxPackListItem, PackStartContext, PaymentProvider, StartPackInput, StartPackResult } from './types'
+export type {
+  ApplyConfirmationResult,
+  ApplyPlanInvoiceResult,
+  ConfirmationFacts,
+  FluxPack,
+  FluxPackListItem,
+  FluxPlan,
+  FluxPlanListItem,
+  PackStartContext,
+  PaymentProvider,
+  PlanInvoiceFacts,
+  StartPackInput,
+  StartPackResult,
+  StartPlanInput,
+  StartPlanResult,
+} from './types'
 export { createSteamReportWorker } from './workers/steam-report'
 
 const logger = useLogger('payment')
@@ -52,19 +74,24 @@ export interface PaymentServiceDeps {
   db: Database
   billing: BillingService
   configKV: ConfigKVService
+  subscription: SubscriptionService
   providers: Partial<Record<PaymentProviderName, PaymentProvider>>
 }
 
 /**
- * Payment CORE: one-time pack checkout, claim, and account deletion.
+ * Payment CORE: pack/plan checkout, claim, plan invoice grant, and deletion.
  *
  * Call stack:
  *
- * Stripe `POST /checkout`
+ * Stripe `POST /checkout` pack
  * -> {@link createPaymentService} `startPack`
- * -> Provider `create`
+ * -> Provider `create` (kind pack)
  *
- * Stripe `POST /webhook` (after signature verify)
+ * Stripe `POST /checkout` plan
+ * -> {@link createPaymentService} `startPlan`
+ * -> Provider `create` (kind plan)
+ *
+ * Stripe `POST /webhook` pack paid
  * -> Provider `confirmed`
  * -> {@link createPaymentService} `applyConfirmation`
  * -> {@link BillingService.creditFlux}
@@ -74,6 +101,10 @@ export interface PaymentServiceDeps {
  * -> Provider `confirmed`
  * -> {@link createPaymentService} `applyConfirmation` (evidence-first)
  * -> {@link BillingService.creditFlux}
+ *
+ * Stripe `invoice.paid`
+ * -> {@link createPaymentService} `applyPlanInvoice`
+ * -> {@link SubscriptionService.grantPeriod}
  */
 export function createPaymentService(deps: PaymentServiceDeps) {
   function requireProvider(provider: PaymentProviderName): PaymentProvider {
@@ -106,6 +137,45 @@ export function createPaymentService(deps: PaymentServiceDeps) {
     return packs.find(item => catalogProductId(item.providers, ref.provider) === ref.providerProductId) ?? null
   }
 
+  async function loadFluxPlans(): Promise<FluxPlan[]> {
+    const plans = await deps.configKV.getOptional('FLUX_PLANS') ?? []
+    return plans.map(plan => ({
+      key: plan.key,
+      name: plan.name,
+      periodQuota: plan.periodQuota,
+      periodMonths: plan.periodMonths ?? 1,
+      recommended: plan.recommended ?? false,
+      defaultCurrency: plan.defaultCurrency,
+      displayPrices: plan.displayPrices,
+      providers: plan.providers ?? {},
+    }))
+  }
+
+  async function listFluxPlans(): Promise<FluxPlanListItem[]> {
+    return (await loadFluxPlans()).map(plan => ({
+      planKey: plan.key,
+      ...(plan.providers.stripe?.priceId ? { stripePriceId: plan.providers.stripe.priceId } : {}),
+      label: plan.name,
+      periodQuota: plan.periodQuota,
+      periodMonths: plan.periodMonths,
+      defaultCurrency: plan.defaultCurrency,
+      currencies: plan.displayPrices,
+      recommended: plan.recommended,
+    }))
+  }
+
+  async function getFluxPlanByKey(planKey: string): Promise<FluxPlan> {
+    const plan = (await loadFluxPlans()).find(item => item.key === planKey)
+    if (!plan)
+      throw createBadRequestError('Invalid plan', 'INVALID_PLAN', { planKey })
+    return plan
+  }
+
+  async function resolvePlan(ref: ProviderProductRef): Promise<FluxPlan | null> {
+    const plans = await loadFluxPlans()
+    return plans.find(item => catalogProductId(item.providers, ref.provider) === ref.providerProductId) ?? null
+  }
+
   async function upsertProviderAccount(
     tx: Pick<Database, 'insert' | 'update' | 'select'>,
     input: { userId: string, provider: string, providerCustomerId: string },
@@ -133,6 +203,29 @@ export function createPaymentService(deps: PaymentServiceDeps) {
       provider: input.provider,
       providerCustomerId: input.providerCustomerId,
     })
+  }
+
+  async function resolveUserIdFromCustomer(input: {
+    provider: string
+    providerCustomerId?: string
+    userId?: string
+  }): Promise<string | null> {
+    if (input.userId)
+      return input.userId
+    if (!input.providerCustomerId)
+      return null
+
+    const [account] = await deps.db
+      .select({ userId: schema.providerAccount.userId })
+      .from(schema.providerAccount)
+      .where(and(
+        eq(schema.providerAccount.provider, input.provider),
+        eq(schema.providerAccount.providerCustomerId, input.providerCustomerId),
+        isNull(schema.providerAccount.deletedAt),
+      ))
+      .limit(1)
+
+    return account?.userId ?? null
   }
 
   async function syncCreditCache(result: ApplyConfirmationResult) {
@@ -215,6 +308,11 @@ export function createPaymentService(deps: PaymentServiceDeps) {
 
       if (!order)
         throw createInternalError('Payment order not found')
+
+      // Plan checkout sessions expire/cancel through this path; paid plan
+      // invoices use applyPlanInvoice and must not credit balance here.
+      if (order.planKey && facts.status === 'paid')
+        return { applied: false as const }
 
       switch (facts.status) {
         case 'paid': {
@@ -356,8 +454,11 @@ export function createPaymentService(deps: PaymentServiceDeps) {
       const adapter = requireProvider(provider)
       return adapter.listPackages(await loadFluxPacks())
     },
+    listPlans: () => listFluxPlans(),
 
     resolvePack,
+    resolvePlan,
+    getFluxPlanByKey,
 
     async getProviderAccount(input: { userId: string, provider: PaymentProviderName }) {
       const row = await deps.db.query.providerAccount.findFirst({
@@ -397,9 +498,73 @@ export function createPaymentService(deps: PaymentServiceDeps) {
       })
 
       const created = await adapter.create({
+        kind: 'pack',
         paymentOrderId: order.id,
         userId: input.userId,
         pack,
+        currency: input.startContext.currency,
+        successUrl: input.startContext.successUrl,
+        cancelUrl: input.startContext.cancelUrl,
+        customerEmail: input.startContext.customerEmail,
+        providerCustomerId: account?.providerCustomerId ?? null,
+        metadata: input.startContext.metadata,
+      })
+
+      await deps.db.update(schema.paymentOrder)
+        .set({
+          providerOrderId: created.providerOrderId,
+          amount: created.amount,
+          currency: created.currency ?? input.startContext.currency,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(schema.paymentOrder.id, order.id),
+          isNull(schema.paymentOrder.providerOrderId),
+        ))
+
+      return { kind: 'redirect', url: created.url, paymentOrderId: order.id }
+    },
+
+    /**
+     * Starts a plan checkout.
+     *
+     * Ordering: refuse when the user already has an active subscription
+     * (409 `ALREADY_SUBSCRIBED`), then create the payment order, then create
+     * the provider session.
+     */
+    async startPlan(input: StartPlanInput): Promise<StartPlanResult> {
+      const active = await deps.subscription.getActiveRow(input.userId)
+      if (active)
+        throw createConflictError('Already subscribed', 'ALREADY_SUBSCRIBED')
+
+      const adapter = requireProvider(input.provider)
+      const plan = await getFluxPlanByKey(input.planKey)
+
+      const [order] = await deps.db.insert(schema.paymentOrder).values({
+        userId: input.userId,
+        provider: input.provider,
+        status: 'pending',
+        planKey: plan.key,
+        fluxAmount: plan.periodQuota,
+        currency: input.startContext.currency,
+      }).returning()
+
+      if (!order)
+        throw createInternalError('Failed to create payment order')
+
+      const account = await deps.db.query.providerAccount.findFirst({
+        where: and(
+          eq(schema.providerAccount.userId, input.userId),
+          eq(schema.providerAccount.provider, input.provider),
+          isNull(schema.providerAccount.deletedAt),
+        ),
+      })
+
+      const created = await adapter.create({
+        kind: 'plan',
+        paymentOrderId: order.id,
+        userId: input.userId,
+        plan,
         currency: input.startContext.currency,
         successUrl: input.startContext.successUrl,
         cancelUrl: input.startContext.cancelUrl,
@@ -428,6 +593,135 @@ export function createPaymentService(deps: PaymentServiceDeps) {
         return claimExistingOrder(facts)
 
       return claimEvidenceOrder(facts)
+    },
+
+    /**
+     * Records a paid plan invoice and grants/resets period quota.
+     * Does not credit Flux balance.
+     */
+    async applyPlanInvoice(facts: PlanInvoiceFacts): Promise<ApplyPlanInvoiceResult> {
+      const userId = await resolveUserIdFromCustomer({
+        provider: facts.provider,
+        providerCustomerId: facts.providerCustomerId,
+        userId: facts.userId,
+      })
+      if (!userId)
+        throw createInternalError('Plan invoice is missing user binding')
+
+      return deps.db.transaction(async (tx) => {
+        const [existingOrder] = await tx
+          .select({ id: schema.paymentOrder.id, status: schema.paymentOrder.status })
+          .from(schema.paymentOrder)
+          .where(and(
+            eq(schema.paymentOrder.provider, facts.provider),
+            eq(schema.paymentOrder.providerOrderId, facts.providerInvoiceId),
+          ))
+          .limit(1)
+
+        if (existingOrder?.status === 'paid')
+          return { applied: false as const }
+
+        const grant = await deps.subscription.grantPeriod({
+          userId,
+          provider: facts.provider,
+          providerSubscriptionId: facts.providerSubscriptionId,
+          planKey: facts.planKey,
+          periodQuotaAmount: facts.periodQuota,
+          providerData: facts.providerData,
+          tx,
+        })
+
+        if (!grant.granted) {
+          logger.withFields({
+            userId,
+            provider: facts.provider,
+            providerSubscriptionId: facts.providerSubscriptionId,
+            providerInvoiceId: facts.providerInvoiceId,
+          }).warn('Plan invoice not granted: user already has an active subscription')
+          return { applied: false as const }
+        }
+
+        if (facts.paymentOrderId) {
+          const [pending] = await tx
+            .select()
+            .from(schema.paymentOrder)
+            .where(eq(schema.paymentOrder.id, facts.paymentOrderId))
+            .for('update')
+
+          if (pending?.status === 'pending') {
+            await tx.update(schema.paymentOrder)
+              .set({
+                status: 'paid',
+                creditedAt: new Date(),
+                providerOrderId: facts.providerInvoiceId,
+                subscriptionId: grant.subscriptionId,
+                planKey: facts.planKey,
+                fluxAmount: facts.periodQuota,
+                amount: facts.amount ?? pending.amount,
+                currency: facts.currency ?? pending.currency,
+                providerData: facts.providerData ?? pending.providerData,
+                updatedAt: new Date(),
+              })
+              .where(and(
+                eq(schema.paymentOrder.id, pending.id),
+                eq(schema.paymentOrder.status, 'pending'),
+              ))
+          }
+          else if (!existingOrder) {
+            await tx.insert(schema.paymentOrder).values({
+              userId,
+              provider: facts.provider,
+              providerOrderId: facts.providerInvoiceId,
+              status: 'paid',
+              planKey: facts.planKey,
+              fluxAmount: facts.periodQuota,
+              subscriptionId: grant.subscriptionId,
+              amount: facts.amount,
+              currency: facts.currency,
+              creditedAt: new Date(),
+              providerData: facts.providerData,
+            })
+          }
+        }
+        else if (!existingOrder) {
+          await tx.insert(schema.paymentOrder).values({
+            userId,
+            provider: facts.provider,
+            providerOrderId: facts.providerInvoiceId,
+            status: 'paid',
+            planKey: facts.planKey,
+            fluxAmount: facts.periodQuota,
+            subscriptionId: grant.subscriptionId,
+            amount: facts.amount,
+            currency: facts.currency,
+            creditedAt: new Date(),
+            providerData: facts.providerData,
+          })
+        }
+
+        if (facts.providerCustomerId) {
+          await upsertProviderAccount(tx, {
+            userId,
+            provider: facts.provider,
+            providerCustomerId: facts.providerCustomerId,
+          })
+        }
+
+        return {
+          applied: true as const,
+          userId,
+          subscriptionId: grant.subscriptionId,
+          periodQuota: facts.periodQuota,
+        }
+      })
+    },
+
+    async endSubscription(input: {
+      provider: PaymentProviderName
+      providerSubscriptionId: string
+      status?: 'ended' | 'canceled'
+    }) {
+      return deps.subscription.endAndReclaim(input)
     },
 
     async cancel(input: { paymentOrderId: string }) {
@@ -501,6 +795,8 @@ export function createPaymentService(deps: PaymentServiceDeps) {
           eq(schema.providerAccount.userId, userId),
           isNull(schema.providerAccount.deletedAt),
         ))
+
+      await deps.subscription.deleteAllForUser(userId)
 
       logger.withFields({ userId, cancelledOrders: pending.length }).log('Payment rows soft-deleted for user')
     },

@@ -36,6 +36,7 @@ export interface RequestLogInput extends UsageInfo {
   status: number
   durationMs: number
   fluxConsumed: number
+  source?: 'quota' | 'balance'
 }
 
 export function getLlmMetricAttributes(opts: { model: string, type: string, status: number, provider: string }): Record<string, string | number> {
