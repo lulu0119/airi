@@ -451,6 +451,7 @@ export function createSessionState(
     }
 
     let fluxConsumed = 0
+    let billingSource: 'quota' | 'balance' | undefined
     try {
       const result = await otelContext.with(trace.setSpan(otelContext.active(), span), () =>
         opts.ttsMeter.accumulate({
@@ -461,6 +462,7 @@ export function createSessionState(
           metadata: { model: modelLabel },
         }))
       fluxConsumed = result.fluxDebited
+      billingSource = result.source
       span.setAttribute(AIRI_ATTR_BILLING_FLUX_CONSUMED, fluxConsumed)
     }
     catch (err) {
@@ -480,6 +482,7 @@ export function createSessionState(
         status: 200,
         durationMs,
         fluxConsumed,
+        source: billingSource,
       })
     }
     catch (err) {

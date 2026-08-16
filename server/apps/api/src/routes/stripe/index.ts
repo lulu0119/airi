@@ -2,6 +2,7 @@ import type Stripe from 'stripe'
 
 import type { Env } from '../../libs/env'
 import type { RateLimitMetrics, RevenueMetrics } from '../../otel'
+import type { ConfigKVService } from '../../services/adapters/config-kv'
 import type { PaymentProvider, PaymentService } from '../../services/domain/payment'
 import type { ProductEventService } from '../../services/domain/product-events'
 import type { HonoEnv } from '../../types/hono'
@@ -19,6 +20,7 @@ export interface StripeRouteDeps {
   payment: PaymentService
   stripeAdapter: PaymentProvider
   stripe: Stripe | null
+  configKV: ConfigKVService
   env: Env
   metrics?: RevenueMetrics | null
   rateLimitMetrics?: RateLimitMetrics | null
@@ -42,6 +44,7 @@ export function createStripeRoutes(deps: StripeRouteDeps) {
     webhookSecret: deps.env.STRIPE_WEBHOOK_SECRET,
     stripeAdapter: deps.stripeAdapter,
     payment: deps.payment,
+    configKV: deps.configKV,
     metrics: deps.metrics,
     productEventService: deps.productEventService,
   })
@@ -49,6 +52,9 @@ export function createStripeRoutes(deps: StripeRouteDeps) {
   return new Hono<HonoEnv>()
     .get('/packages', async (c) => {
       return c.json(await deps.payment.listPacks('stripe'))
+    })
+    .get('/plans', async (c) => {
+      return c.json(await deps.payment.listPlans())
     })
     .post('/checkout', authGuard, rateLimiter({ max: 10, windowSec: 60, metrics: deps.rateLimitMetrics, routeLabel: 'stripe.checkout' }), async (c) => {
       const body = await c.req.json()

@@ -11,6 +11,7 @@ import type { FluxService } from './services/domain/flux'
 import type { FluxTransactionService } from './services/domain/flux-transaction'
 import type { LlmRouterService } from './services/domain/llm-router'
 import type { PaymentProvider, PaymentService } from './services/domain/payment'
+import type { SubscriptionService } from './services/domain/subscription'
 import type { AppleIapVerifier } from './services/domain/payment/adapters/apple-verifier'
 import type { SteamMicroTxnClient } from './services/domain/payment/adapters/steam-client'
 import type { ProductEventService } from './services/domain/product-events'
@@ -70,6 +71,7 @@ import { createFluxService } from './services/domain/flux'
 import { createFluxTransactionService } from './services/domain/flux-transaction'
 import { createConcurrencyLedger, createConfigSyncSubscriber, createLlmRouterService } from './services/domain/llm-router'
 import { createApplePaymentProvider, createPaymentService, createSteamMicroTxnClient, createSteamPaymentProvider, createStripePaymentProvider } from './services/domain/payment'
+import { createSubscriptionService } from './services/domain/subscription'
 import { createAppleIapVerifier } from './services/domain/payment/adapters/apple-verifier'
 import { createProductEventService } from './services/domain/product-events'
 import { createProviderCatalogService } from './services/domain/provider-catalog'
@@ -92,6 +94,7 @@ interface AppDeps {
   paymentService: PaymentService
   stripeAdapter: PaymentProvider
   appleAdapter: PaymentProvider
+  subscriptionService: SubscriptionService
   appleIapVerifier: AppleIapVerifier | null
   steamAdapter: PaymentProvider
   steamClient: SteamMicroTxnClient | null
@@ -364,7 +367,7 @@ export async function buildApp(deps: AppDeps) {
     /**
      * Flux routes.
      */
-    .route('/api/v1/flux', createFluxRoutes(deps.fluxService, deps.fluxTransactionService))
+    .route('/api/v1/flux', createFluxRoutes(deps.fluxService, deps.fluxTransactionService, deps.subscriptionService))
 
     /**
      * Stripe routes.
@@ -626,9 +629,14 @@ export async function createApp() {
     },
   })
 
-  const fluxTransactionService = injeca.provide('services:fluxTransaction', {
+  const subscriptionService = injeca.provide('services:subscription', {
     dependsOn: { db },
-    build: ({ dependsOn }) => createFluxTransactionService(dependsOn.db),
+    build: ({ dependsOn }) => createSubscriptionService({ db: dependsOn.db }),
+  })
+
+  const fluxTransactionService = injeca.provide('services:fluxTransaction', {
+    dependsOn: { db, subscriptionService },
+    build: ({ dependsOn }) => createFluxTransactionService(dependsOn.db, dependsOn.subscriptionService),
   })
 
   const fluxService = injeca.provide('services:flux', {
@@ -652,16 +660,23 @@ export async function createApp() {
   })
 
   const billingService = injeca.provide('services:billing', {
-    dependsOn: { db, redis, configKV, otel },
-    build: ({ dependsOn }) => createBillingService(dependsOn.db, dependsOn.redis, dependsOn.configKV, dependsOn.otel?.revenue),
+    dependsOn: { db, redis, configKV, otel, subscriptionService },
+    build: ({ dependsOn }) => createBillingService(
+      dependsOn.db,
+      dependsOn.redis,
+      dependsOn.configKV,
+      dependsOn.otel?.revenue,
+      dependsOn.subscriptionService,
+    ),
   })
 
   const paymentService = injeca.provide('services:payment', {
-    dependsOn: { db, billingService, configKV, stripeAdapter, appleAdapter, steamAdapter },
+    dependsOn: { db, billingService, configKV, stripeAdapter, appleAdapter, steamAdapter, subscriptionService },
     build: ({ dependsOn }) => createPaymentService({
       db: dependsOn.db,
       billing: dependsOn.billingService,
       configKV: dependsOn.configKV,
+      subscription: dependsOn.subscriptionService,
       providers: {
         stripe: dependsOn.stripeAdapter,
         apple_iap: dependsOn.appleAdapter,
@@ -760,6 +775,7 @@ export async function createApp() {
     appleIapVerifier,
     steamAdapter,
     steamClient,
+    subscriptionService,
     stripe,
     billingService,
     ttsMeter,
@@ -788,6 +804,7 @@ export async function createApp() {
     paymentService: resolved.paymentService,
     stripeAdapter: resolved.stripeAdapter,
     appleAdapter: resolved.appleAdapter,
+    subscriptionService: resolved.subscriptionService,
     appleIapVerifier: resolved.appleIapVerifier,
     steamAdapter: resolved.steamAdapter,
     steamClient: resolved.steamClient,

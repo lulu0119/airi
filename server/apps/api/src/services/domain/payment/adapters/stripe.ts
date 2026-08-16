@@ -5,7 +5,7 @@ import type { ConfirmationFacts, FluxPack, FluxPackListItem, PaymentProvider, Pr
 
 import { useLogger } from '@guiiai/logg'
 
-import { createServiceUnavailableError } from '../../../../utils/error'
+import { createInternalError, createServiceUnavailableError } from '../../../../utils/error'
 
 const logger = useLogger('payment.stripe')
 
@@ -64,48 +64,15 @@ export function createStripePaymentProvider(
       if (!stripe)
         throw createServiceUnavailableError('Stripe is not configured', 'STRIPE_NOT_CONFIGURED')
 
-      const priceId = input.pack.providers.stripe?.priceId
-      if (!priceId)
-        throw createServiceUnavailableError('Stripe pack mapping is missing', 'STRIPE_PACK_NOT_MAPPED', { packKey: input.pack.key })
-
-      const paymentMethods = await configKV.getOptional('STRIPE_PAYMENT_METHODS')
-      const paymentMethodOptions = await configKV.getOptional('STRIPE_PAYMENT_METHOD_OPTIONS') ?? {}
-
-      const sessionParams: CheckoutSessionCreateParams = {
-        line_items: [{ price: priceId, quantity: 1 }],
-        mode: 'payment',
-        allow_promotion_codes: true,
-        success_url: input.successUrl,
-        cancel_url: input.cancelUrl,
-        customer: input.providerCustomerId ?? undefined,
-        customer_email: input.providerCustomerId ? undefined : input.customerEmail,
-        metadata: {
-          payment_order_id: input.paymentOrderId,
-          userId: input.userId,
-          packKey: input.pack.key,
-          fluxAmount: String(input.pack.fluxAmount),
-          ...input.metadata,
-        },
-      }
-
-      if (paymentMethods)
-        sessionParams.payment_method_types = paymentMethods as CheckoutSessionCreateParams['payment_method_types']
-
-      if (Object.keys(paymentMethodOptions).length > 0)
-        sessionParams.payment_method_options = paymentMethodOptions as CheckoutSessionCreateParams['payment_method_options']
-
-      if (input.currency)
-        sessionParams.currency = input.currency
-
-      const session = await stripe.checkout.sessions.create(sessionParams)
-      if (!session.url)
-        throw createServiceUnavailableError('Stripe checkout did not return a URL', 'STRIPE_CHECKOUT_URL_MISSING')
-
-      return {
-        providerOrderId: session.id,
-        url: session.url,
-        amount: session.amount_total ?? undefined,
-        currency: session.currency ?? undefined,
+      switch (input.kind) {
+        case 'pack':
+          return createPackCheckout(stripe, configKV, input)
+        case 'plan':
+          return createPlanCheckout(stripe, configKV, input)
+        default: {
+          const exhaustive: never = input
+          throw createInternalError(`Unhandled provider create kind: ${String(exhaustive)}`)
+        }
       }
     },
 
@@ -152,6 +119,114 @@ export function createStripePaymentProvider(
     async getStatus() {
       return null
     },
+  }
+}
+
+async function createPackCheckout(
+  stripe: Stripe,
+  configKV: ConfigKVService,
+  input: Extract<ProviderCreateInput, { kind: 'pack' }>,
+): Promise<ProviderCreateResult> {
+  const priceId = input.pack.providers.stripe?.priceId
+  if (!priceId)
+    throw createServiceUnavailableError('Stripe pack mapping is missing', 'STRIPE_PACK_NOT_MAPPED', { packKey: input.pack.key })
+
+  const paymentMethods = await configKV.getOptional('STRIPE_PAYMENT_METHODS')
+  const paymentMethodOptions = await configKV.getOptional('STRIPE_PAYMENT_METHOD_OPTIONS') ?? {}
+
+  const sessionParams: CheckoutSessionCreateParams = {
+    line_items: [{ price: priceId, quantity: 1 }],
+    mode: 'payment',
+    allow_promotion_codes: true,
+    success_url: input.successUrl,
+    cancel_url: input.cancelUrl,
+    customer: input.providerCustomerId ?? undefined,
+    customer_email: input.providerCustomerId ? undefined : input.customerEmail,
+    metadata: {
+      payment_order_id: input.paymentOrderId,
+      userId: input.userId,
+      packKey: input.pack.key,
+      fluxAmount: String(input.pack.fluxAmount),
+      ...input.metadata,
+    },
+  }
+
+  if (paymentMethods)
+    sessionParams.payment_method_types = paymentMethods as CheckoutSessionCreateParams['payment_method_types']
+
+  if (Object.keys(paymentMethodOptions).length > 0)
+    sessionParams.payment_method_options = paymentMethodOptions as CheckoutSessionCreateParams['payment_method_options']
+
+  if (input.currency)
+    sessionParams.currency = input.currency
+
+  const session = await stripe.checkout.sessions.create(sessionParams)
+  if (!session.url)
+    throw createServiceUnavailableError('Stripe checkout did not return a URL', 'STRIPE_CHECKOUT_URL_MISSING')
+
+  return {
+    providerOrderId: session.id,
+    url: session.url,
+    amount: session.amount_total ?? undefined,
+    currency: session.currency ?? undefined,
+  }
+}
+
+async function createPlanCheckout(
+  stripe: Stripe,
+  configKV: ConfigKVService,
+  input: Extract<ProviderCreateInput, { kind: 'plan' }>,
+): Promise<ProviderCreateResult> {
+  const priceId = input.plan.providers.stripe?.priceId
+  if (!priceId)
+    throw createServiceUnavailableError('Stripe plan mapping is missing', 'STRIPE_PLAN_NOT_MAPPED', { planKey: input.plan.key })
+
+  const paymentMethods = await configKV.getOptional('STRIPE_PAYMENT_METHODS')
+  const paymentMethodOptions = await configKV.getOptional('STRIPE_PAYMENT_METHOD_OPTIONS') ?? {}
+
+  const sessionParams: CheckoutSessionCreateParams = {
+    line_items: [{ price: priceId, quantity: 1 }],
+    mode: 'subscription',
+    allow_promotion_codes: true,
+    success_url: input.successUrl,
+    cancel_url: input.cancelUrl,
+    customer: input.providerCustomerId ?? undefined,
+    customer_email: input.providerCustomerId ? undefined : input.customerEmail,
+    metadata: {
+      payment_order_id: input.paymentOrderId,
+      userId: input.userId,
+      planKey: input.plan.key,
+      periodQuota: String(input.plan.periodQuota),
+      ...input.metadata,
+    },
+    subscription_data: {
+      metadata: {
+        payment_order_id: input.paymentOrderId,
+        userId: input.userId,
+        planKey: input.plan.key,
+        periodQuota: String(input.plan.periodQuota),
+      },
+    },
+  }
+
+  if (paymentMethods)
+    sessionParams.payment_method_types = paymentMethods as CheckoutSessionCreateParams['payment_method_types']
+
+  if (Object.keys(paymentMethodOptions).length > 0)
+    sessionParams.payment_method_options = paymentMethodOptions as CheckoutSessionCreateParams['payment_method_options']
+
+  if (input.currency)
+    sessionParams.currency = input.currency
+
+  const session = await stripe.checkout.sessions.create(sessionParams)
+  if (!session.url)
+    throw createServiceUnavailableError('Stripe checkout did not return a URL', 'STRIPE_CHECKOUT_URL_MISSING')
+
+  return {
+    providerOrderId: session.id,
+    url: session.url,
+    amount: session.amount_total ?? undefined,
+    currency: session.currency ?? undefined,
   }
 }
 

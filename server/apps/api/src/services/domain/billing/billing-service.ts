@@ -3,6 +3,7 @@ import type Redis from 'ioredis'
 import type { Database } from '../../../libs/db'
 import type { RevenueMetrics } from '../../../otel'
 import type { ConfigKVService } from '../../adapters/config-kv'
+import type { SubscriptionService } from '../subscription'
 
 import { useLogger } from '@guiiai/logg'
 import { and, eq } from 'drizzle-orm'
@@ -18,11 +19,14 @@ const logger = useLogger('billing-service')
 /** Database handle used when Payment CORE already owns the outer transaction. */
 export type BillingTransaction = Pick<Database, 'insert' | 'update' | 'select'>
 
+export type FluxBillingSource = 'quota' | 'balance'
+
 export function createBillingService(
   db: Database,
   redis: Redis,
   _configKV: ConfigKVService,
   metrics?: RevenueMetrics | null,
+  subscription?: SubscriptionService,
 ) {
   /**
    * Update Redis cache after a successful DB transaction.
@@ -35,6 +39,23 @@ export function createBillingService(
     catch {
       logger.withFields({ userId }).warn('Failed to update Redis cache after balance change')
     }
+  }
+
+  async function readBalance(userId: string): Promise<number> {
+    const cached = await redis.get(userFluxRedisKey(userId)).catch(() => null)
+    if (cached != null) {
+      const parsed = Number(cached)
+      if (Number.isFinite(parsed))
+        return parsed
+    }
+
+    const [row] = await db
+      .select({ flux: fluxSchema.userFlux.flux })
+      .from(fluxSchema.userFlux)
+      .where(eq(fluxSchema.userFlux.userId, userId))
+      .limit(1)
+
+    return row?.flux ?? 0
   }
 
   /**
@@ -178,8 +199,14 @@ export function createBillingService(
   return {
     /**
      * Debit flux for an LLM API request (chat, TTS).
-     * Token usage is persisted in the `flux_transaction.metadata` column so
-     * the existing transaction-history UI can render per-request token counts.
+     *
+     * Whole-request path selection (OpenCode-style):
+     * 1. Active subscription with remaining quota >= amount → quota only
+     * 2. Else if useBalance → balance debit (may partial-drain)
+     * 3. Else 402
+     *
+     * Quota consume does not write `flux_transaction`. Callers must tag
+     * `llm_request_log.source` from the returned `source`.
      */
     async consumeFluxForLLM(input: {
       userId: string
@@ -189,8 +216,48 @@ export function createBillingService(
       model?: string
       promptTokens?: number
       completionTokens?: number
-    }): Promise<{ userId: string, flux: number, charged: number, requested: number }> {
-      return debitFlux({
+    }): Promise<{
+      userId: string
+      flux: number
+      charged: number
+      requested: number
+      source: FluxBillingSource
+    }> {
+      if (subscription) {
+        const entitlement = await subscription.getEntitlement(input.userId)
+        if (entitlement && entitlement.periodQuotaRemaining >= input.amount) {
+          const quota = await subscription.tryConsumeQuota({
+            userId: input.userId,
+            amount: input.amount,
+            requestId: input.requestId,
+          })
+          if (quota) {
+            const balance = await readBalance(input.userId)
+            logger.withFields({
+              userId: input.userId,
+              amount: input.amount,
+              charged: quota.charged,
+              source: 'quota',
+              remaining: quota.remaining,
+            }).log('Consumed period quota')
+            return {
+              userId: input.userId,
+              flux: balance,
+              charged: quota.charged,
+              requested: input.amount,
+              source: 'quota',
+            }
+          }
+        }
+
+        if (entitlement && !entitlement.useBalance) {
+          throw createPaymentRequiredError('Monthly Flux quota exhausted', {
+            reason: 'quota_exhausted',
+          })
+        }
+      }
+
+      const result = await debitFlux({
         userId: input.userId,
         amount: input.amount,
         requestId: input.requestId,
@@ -202,6 +269,48 @@ export function createBillingService(
           ...(input.completionTokens != null && { completionTokens: input.completionTokens }),
         },
       })
+
+      return { ...result, source: 'balance' as const }
+    },
+
+    /**
+     * Preflight policy shared by authorizeChat / authorizeTts.
+     * Mirrors consume path selection without mutating counters.
+     */
+    async authorizeFluxSpend(input: {
+      userId: string
+      minimumAmount: number
+    }): Promise<{ source: FluxBillingSource | 'none', balance: number, quotaRemaining: number }> {
+      const balance = await readBalance(input.userId)
+      if (!subscription) {
+        if (balance < input.minimumAmount)
+          throw createPaymentRequiredError('Insufficient flux')
+        return { source: 'balance', balance, quotaRemaining: 0 }
+      }
+
+      const entitlement = await subscription.getEntitlement(input.userId)
+      if (entitlement && entitlement.periodQuotaRemaining >= input.minimumAmount) {
+        return {
+          source: 'quota',
+          balance,
+          quotaRemaining: entitlement.periodQuotaRemaining,
+        }
+      }
+
+      if (entitlement && !entitlement.useBalance) {
+        throw createPaymentRequiredError('Monthly Flux quota exhausted', {
+          reason: 'quota_exhausted',
+        })
+      }
+
+      if (balance < input.minimumAmount)
+        throw createPaymentRequiredError('Insufficient flux')
+
+      return {
+        source: 'balance',
+        balance,
+        quotaRemaining: entitlement?.periodQuotaRemaining ?? 0,
+      }
     },
 
     /**

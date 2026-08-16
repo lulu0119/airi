@@ -6,7 +6,6 @@ import type { FluxMeter } from '../../../../services/domain/billing/flux-meter'
 import type { FluxService } from '../../../../services/domain/flux'
 
 import { calculateFluxFromUsage } from '../../../../services/domain/billing/billing'
-import { createPaymentRequiredError } from '../../../../utils/error'
 import { GEN_AI_ATTR_REQUEST_MODEL } from '../../../../utils/observability'
 
 export interface ChatFluxDebitInput extends UsageInfo {
@@ -43,14 +42,14 @@ export interface OpenAiRouteBilling {
     model: string
     stage: 'streaming' | 'non_streaming'
   }) => void
-  settleChat: (input: Omit<ChatFluxDebitInput, 'billingService' | 'revenue'>) => Promise<number>
+  settleChat: (input: Omit<ChatFluxDebitInput, 'billingService' | 'revenue'>) => Promise<{ charged: number, source: 'quota' | 'balance' }>
   settleTts: (input: {
     userId: string
     inputText: string
     currentBalance: number
     requestId: string
     model: string
-  }) => Promise<{ fluxDebited: number }>
+  }) => Promise<{ fluxDebited: number, source?: 'quota' | 'balance' }>
 }
 
 export function createOpenAiRouteBilling(deps: {
@@ -75,10 +74,10 @@ export function createOpenAiRouteBilling(deps: {
     const fallbackRate = await deps.configKV.getOrThrow('FLUX_PER_REQUEST')
     const fluxPer1kTokens = await deps.configKV.get('FLUX_PER_1K_TOKENS')
 
-    const flux = await deps.fluxService.getFlux(userId)
-    if (flux.flux < fallbackRate) {
-      throw createPaymentRequiredError('Insufficient flux')
-    }
+    await deps.billingService.authorizeFluxSpend({
+      userId,
+      minimumAmount: fallbackRate,
+    })
 
     return { fallbackRate, fluxPer1kTokens }
   }
@@ -89,7 +88,7 @@ export function createOpenAiRouteBilling(deps: {
     return calculateFluxFromUsage(usage, policy.fluxPer1kTokens, policy.fallbackRate)
   }
 
-  async function settleChat(input: Omit<ChatFluxDebitInput, 'billingService' | 'revenue'>): Promise<number> {
+  async function settleChat(input: Omit<ChatFluxDebitInput, 'billingService' | 'revenue'>): Promise<{ charged: number, source: 'quota' | 'balance' }> {
     return debitChatFlux({
       ...input,
       billingService: deps.billingService,
@@ -110,16 +109,19 @@ export function createOpenAiRouteBilling(deps: {
   }
 
   async function authorizeTts(userId: string, inputText: string): Promise<TtsBillingAuthorization> {
-    const flux = await deps.fluxService.getFlux(userId)
-    if (flux.flux <= 0) {
-      throw createPaymentRequiredError('Insufficient flux')
-    }
+    const auth = await deps.billingService.authorizeFluxSpend({
+      userId,
+      minimumAmount: 1,
+    })
 
     // Pre-flight: refuse before hitting upstream if this segment would push the
-    // user past their balance. Cheap-path requests below the Flux threshold
-    // still pass when the user has at least 1 Flux.
-    await deps.ttsMeter.assertCanAfford(userId, inputText.length, flux.flux)
-    return { balance: flux.flux, inputChars: inputText.length }
+    // user past their balance. Quota-backed users skip the balance gate.
+    // Cheap-path requests below the Flux threshold still pass when the user
+    // has at least 1 Flux (or remaining quota).
+    if (auth.source === 'balance')
+      await deps.ttsMeter.assertCanAfford(userId, inputText.length, auth.balance)
+
+    return { balance: auth.balance, inputChars: inputText.length }
   }
 
   async function settleTts(input: {
@@ -141,7 +143,7 @@ export function createOpenAiRouteBilling(deps: {
   return { authorizeChat, authorizeTts, priceChatUsage, recordChatDebitFailure, settleChat, settleTts }
 }
 
-export async function debitChatFlux(input: ChatFluxDebitInput): Promise<number> {
+export async function debitChatFlux(input: ChatFluxDebitInput): Promise<{ charged: number, source: 'quota' | 'balance' }> {
   const result = await input.billingService.consumeFluxForLLM({
     userId: input.userId,
     amount: input.amount,
@@ -169,5 +171,5 @@ export async function debitChatFlux(input: ChatFluxDebitInput): Promise<number> 
       : 'Partial debit on non-streaming completion — flux drained to zero')
   }
 
-  return result.charged
+  return { charged: result.charged, source: result.source }
 }
