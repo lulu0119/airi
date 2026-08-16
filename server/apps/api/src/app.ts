@@ -12,6 +12,7 @@ import type { FluxTransactionService } from './services/domain/flux-transaction'
 import type { LlmRouterService } from './services/domain/llm-router'
 import type { PaymentProvider, PaymentService } from './services/domain/payment'
 import type { AppleIapVerifier } from './services/domain/payment/adapters/apple-verifier'
+import type { SteamMicroTxnClient } from './services/domain/payment/adapters/steam-client'
 import type { ProductEventService } from './services/domain/product-events'
 import type { ProviderCatalogService } from './services/domain/provider-catalog'
 import type { ProviderService } from './services/domain/providers'
@@ -55,6 +56,7 @@ import { createFluxRoutes } from './routes/flux'
 import { createInternalAuthRoutes } from './routes/internal-auth'
 import { createV1Routes } from './routes/openai/v1'
 import { createProviderRoutes } from './routes/providers'
+import { createSteamRoutes } from './routes/steam'
 import { createStripeRoutes } from './routes/stripe'
 import { createVoicePackRoutes } from './routes/voice-packs'
 import { createConfigKVService } from './services/adapters/config-kv'
@@ -67,7 +69,7 @@ import { createChatService } from './services/domain/chats'
 import { createFluxService } from './services/domain/flux'
 import { createFluxTransactionService } from './services/domain/flux-transaction'
 import { createConcurrencyLedger, createConfigSyncSubscriber, createLlmRouterService } from './services/domain/llm-router'
-import { createApplePaymentProvider, createPaymentService, createStripePaymentProvider } from './services/domain/payment'
+import { createApplePaymentProvider, createPaymentService, createSteamMicroTxnClient, createSteamPaymentProvider, createStripePaymentProvider } from './services/domain/payment'
 import { createAppleIapVerifier } from './services/domain/payment/adapters/apple-verifier'
 import { createProductEventService } from './services/domain/product-events'
 import { createProviderCatalogService } from './services/domain/provider-catalog'
@@ -91,6 +93,8 @@ interface AppDeps {
   stripeAdapter: PaymentProvider
   appleAdapter: PaymentProvider
   appleIapVerifier: AppleIapVerifier | null
+  steamAdapter: PaymentProvider
+  steamClient: SteamMicroTxnClient | null
   stripe: Stripe | null
   billingService: BillingService
   ttsMeter: FluxMeter
@@ -386,6 +390,19 @@ export async function buildApp(deps: AppDeps) {
     }))
 
     /**
+     * Steam MicroTxn routes (GetReport sync for worker/cron).
+     */
+    .route('/api/v1/steam', createSteamRoutes({
+      payment: deps.paymentService,
+      steamAdapter: deps.steamAdapter,
+      steamClient: deps.steamClient,
+      db: deps.db,
+      redis: deps.redis,
+      reportCronSecret: deps.env.STEAM_REPORT_CRON_SECRET || null,
+      rateLimitMetrics: deps.otel?.rateLimit,
+    }))
+
+    /**
      * Catch-all 404 in JSON. Replaces hono's default `text/html` "404 Not
      * Found" so unmatched routes (typos, stale email links, scanners) get a
      * structured response and a hint at where to go for the real product UI.
@@ -591,6 +608,24 @@ export async function createApp() {
     },
   })
 
+  const steamAdapter = injeca.provide('services:steamAdapter', {
+    build: () => createSteamPaymentProvider(),
+  })
+
+  const steamClient = injeca.provide('services:steamClient', {
+    dependsOn: { env: parsedEnv },
+    build: ({ dependsOn }) => {
+      if (!dependsOn.env.STEAM_PUBLISHER_KEY || dependsOn.env.STEAM_APP_ID == null)
+        return null
+      const sandboxRaw = dependsOn.env.STEAM_MICROTXN_SANDBOX
+      return createSteamMicroTxnClient({
+        publisherKey: dependsOn.env.STEAM_PUBLISHER_KEY,
+        appId: dependsOn.env.STEAM_APP_ID,
+        sandbox: sandboxRaw === 'true' || sandboxRaw === '1',
+      })
+    },
+  })
+
   const fluxTransactionService = injeca.provide('services:fluxTransaction', {
     dependsOn: { db },
     build: ({ dependsOn }) => createFluxTransactionService(dependsOn.db),
@@ -622,7 +657,7 @@ export async function createApp() {
   })
 
   const paymentService = injeca.provide('services:payment', {
-    dependsOn: { db, billingService, configKV, stripeAdapter, appleAdapter },
+    dependsOn: { db, billingService, configKV, stripeAdapter, appleAdapter, steamAdapter },
     build: ({ dependsOn }) => createPaymentService({
       db: dependsOn.db,
       billing: dependsOn.billingService,
@@ -630,6 +665,7 @@ export async function createApp() {
       providers: {
         stripe: dependsOn.stripeAdapter,
         apple_iap: dependsOn.appleAdapter,
+        steam: dependsOn.steamAdapter,
       },
     }),
   })
@@ -722,6 +758,8 @@ export async function createApp() {
     stripeAdapter,
     appleAdapter,
     appleIapVerifier,
+    steamAdapter,
+    steamClient,
     stripe,
     billingService,
     ttsMeter,
@@ -751,6 +789,8 @@ export async function createApp() {
     stripeAdapter: resolved.stripeAdapter,
     appleAdapter: resolved.appleAdapter,
     appleIapVerifier: resolved.appleIapVerifier,
+    steamAdapter: resolved.steamAdapter,
+    steamClient: resolved.steamClient,
     stripe: resolved.stripe,
     voicePackService: resolved.voicePackService,
     billingService: resolved.billingService,
@@ -776,5 +816,12 @@ export async function createApp() {
     injectWebSocket,
     port: resolved.env.PORT,
     hostname: resolved.env.HOST,
+    // Exposed for one-shot workers (Steam GetReport cron) that reuse the same DI graph.
+    paymentService: resolved.paymentService,
+    steamAdapter: resolved.steamAdapter,
+    steamClient: resolved.steamClient,
+    configKV: resolved.configKV,
+    db: resolved.db,
+    redis: resolved.redis,
   }
 }

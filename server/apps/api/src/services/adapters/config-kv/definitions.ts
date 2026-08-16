@@ -258,6 +258,9 @@ export const configEntrySchemas = {
       appleIap: optional(object({
         productId: pipe(string(), nonEmpty('FLUX_PACKS[].providers.appleIap.productId must not be empty')),
       })),
+      steam: optional(object({
+        itemId: pipe(number(), minValue(1, 'FLUX_PACKS[].providers.steam.itemId must be >= 1')),
+      })),
     }), {}),
   })), []),
   // No default — absent means top-up is not available yet

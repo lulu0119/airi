@@ -24,6 +24,8 @@ function createTestDeps() {
     stripeAdapter: {} as never,
     appleAdapter: {} as never,
     appleIapVerifier: null,
+    steamAdapter: {} as never,
+    steamClient: null,
     stripe: null,
     billingService: {} as never,
     ttsMeter: {} as never,

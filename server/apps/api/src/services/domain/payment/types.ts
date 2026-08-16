@@ -13,6 +13,7 @@ export type ConfirmationStatus = typeof CONFIRMATION_STATUSES[number]
 export interface CatalogProviderIds {
   stripe?: { priceId: string }
   appleIap?: { productId: string }
+  steam?: { itemId: number }
 }
 
 export interface ProviderProductRef {
@@ -32,6 +33,7 @@ export interface FluxPackListItem {
   packKey: string
   stripePriceId?: string
   appleProductId?: string
+  steamItemId?: number
   label: string
   defaultCurrency: string
   currencies: Record<string, string>
@@ -101,7 +103,7 @@ export interface ProviderCreateResult {
 }
 
 /**
- * Internal Provider seam. Stripe and Apple IAP satisfy this.
+ * Internal Provider seam. Stripe, Apple, and Steam satisfy this.
  *
  * Channel routes call {@link PaymentProvider.confirmed} after they verify
  * the native payload. CORE calls {@link PaymentProvider.create}.
