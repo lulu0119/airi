@@ -2,7 +2,7 @@ import type { Database } from '../../../../libs/db'
 import type { ConfigKVService } from '../../../adapters/config-kv'
 import type { FluxPack, PaymentProvider, ProviderCreateInput } from '../types'
 
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockDB } from '../../../../libs/mock-db'
@@ -18,7 +18,7 @@ const starterPack: FluxPack = {
   name: '500 Flux',
   fluxAmount: 500,
   recommended: false,
-  providers: { stripe: { priceId: 'price_starter' } },
+  providers: { stripe: { priceId: 'price_starter' }, appleIap: { productId: 'flux.pack.500' } },
 }
 
 function createTestPaymentProvider(options?: {
@@ -253,5 +253,60 @@ describe('payment CORE', () => {
     })).rejects.toMatchObject({
       statusCode: 500,
     })
+  })
+
+  it('resolvePack finds a pack by Apple product id', async () => {
+    await expect(payment.resolvePack({ provider: 'apple_iap', providerProductId: 'flux.pack.500' }))
+      .resolves
+      .toMatchObject({ key: 'starter', fluxAmount: 500 })
+  })
+
+  it('evidence-first applyConfirmation inserts paid order and credits Flux', async () => {
+    const result = await payment.applyConfirmation({
+      provider: 'apple_iap',
+      providerOrderId: 'apple_txn_1',
+      status: 'paid',
+      userId: 'user-pay-1',
+      packKey: 'starter',
+      fluxAmount: 500,
+      amount: 4990000,
+      currency: 'USD',
+      providerCustomerId: 'app-account-token-1',
+    })
+
+    expect(result).toMatchObject({ applied: true, fluxAmount: 500, balanceAfter: 500 })
+
+    const [order] = await db.select().from(schema.paymentOrder).where(and(
+      eq(schema.paymentOrder.provider, 'apple_iap'),
+      eq(schema.paymentOrder.providerOrderId, 'apple_txn_1'),
+    ))
+    expect(order?.status).toBe('paid')
+    expect(order?.packKey).toBe('starter')
+    expect(order?.fluxAmount).toBe(500)
+    expect(order?.creditedAt).toBeInstanceOf(Date)
+
+    const [account] = await db.select().from(schema.providerAccount).where(eq(schema.providerAccount.userId, 'user-pay-1'))
+    expect(account?.provider).toBe('apple_iap')
+    expect(account?.providerCustomerId).toBe('app-account-token-1')
+  })
+
+  it('evidence-first applyConfirmation replay returns applied false', async () => {
+    const facts = {
+      provider: 'apple_iap' as const,
+      providerOrderId: 'apple_txn_replay',
+      status: 'paid' as const,
+      userId: 'user-pay-1',
+      packKey: 'starter',
+      fluxAmount: 500,
+    }
+
+    const first = await payment.applyConfirmation(facts)
+    const second = await payment.applyConfirmation(facts)
+
+    expect(first.applied).toBe(true)
+    expect(second.applied).toBe(false)
+
+    const ledger = await db.select().from(schema.fluxTransaction).where(eq(schema.fluxTransaction.userId, 'user-pay-1'))
+    expect(ledger).toHaveLength(1)
   })
 })

@@ -3,6 +3,7 @@ import type { ConfigKVService } from '../../adapters/config-kv'
 import type { BillingService } from '../billing/billing-service'
 import type {
   ApplyConfirmationResult,
+  CatalogProviderIds,
   ConfirmationFacts,
   FluxPack,
   FluxPackListItem,
@@ -20,12 +21,22 @@ import { createBadRequestError, createInternalError, createServiceUnavailableErr
 
 import * as schema from '../../../schemas/payment'
 
+export { createApplePaymentProvider } from './adapters/apple'
+export { createAppleIapVerifier } from './adapters/apple-verifier'
 export { createStripePaymentProvider } from './adapters/stripe'
 export type { ApplyConfirmationResult, ConfirmationFacts, FluxPack, FluxPackListItem, PackStartContext, PaymentProvider, StartPackInput, StartPackResult } from './types'
 
 const logger = useLogger('payment')
 
 const OPEN_CHECKOUT_CANCEL_STATUSES = ['pending'] as const
+
+function catalogProductId(providers: CatalogProviderIds, provider: PaymentProviderName): string | number | undefined {
+  if (provider === 'stripe')
+    return providers.stripe?.priceId
+  if (provider === 'apple_iap')
+    return providers.appleIap?.productId
+  return undefined
+}
 
 export interface PaymentServiceDeps {
   db: Database
@@ -46,6 +57,12 @@ export interface PaymentServiceDeps {
  * Stripe `POST /webhook` (after signature verify)
  * -> Provider `confirmed`
  * -> {@link createPaymentService} `applyConfirmation`
+ * -> {@link BillingService.creditFlux}
+ *
+ * Apple `POST /transactions` pack
+ * -> verify JWS (channel)
+ * -> Provider `confirmed`
+ * -> {@link createPaymentService} `applyConfirmation` (evidence-first)
  * -> {@link BillingService.creditFlux}
  */
 export function createPaymentService(deps: PaymentServiceDeps) {
@@ -76,9 +93,7 @@ export function createPaymentService(deps: PaymentServiceDeps) {
 
   async function resolvePack(ref: ProviderProductRef): Promise<FluxPack | null> {
     const packs = await loadFluxPacks()
-    if (ref.provider === 'stripe')
-      return packs.find(item => item.providers.stripe?.priceId === ref.providerProductId) ?? null
-    return null
+    return packs.find(item => catalogProductId(item.providers, ref.provider) === ref.providerProductId) ?? null
   }
 
   async function upsertProviderAccount(
@@ -108,6 +123,222 @@ export function createPaymentService(deps: PaymentServiceDeps) {
       provider: input.provider,
       providerCustomerId: input.providerCustomerId,
     })
+  }
+
+  async function syncCreditCache(result: ApplyConfirmationResult) {
+    if (result.applied) {
+      await deps.billing.syncFluxCache(result.userId, result.balanceAfter, {
+        amount: result.fluxAmount,
+        source: 'payment.pack',
+      })
+    }
+  }
+
+  async function creditClaimedOrder(
+    tx: Pick<Database, 'insert' | 'update' | 'select'>,
+    input: {
+      order: typeof schema.paymentOrder.$inferSelect
+      facts: ConfirmationFacts
+      fluxAmount: number
+    },
+  ): Promise<ApplyConfirmationResult> {
+    const [claimed] = await tx.update(schema.paymentOrder)
+      .set({
+        status: 'paid',
+        creditedAt: new Date(),
+        providerOrderId: input.facts.providerOrderId,
+        amount: input.facts.amount ?? input.order.amount,
+        currency: input.facts.currency ?? input.order.currency,
+        providerData: input.facts.providerData ?? input.order.providerData,
+        packKey: input.facts.packKey ?? input.order.packKey,
+        fluxAmount: input.fluxAmount,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(schema.paymentOrder.id, input.order.id),
+        eq(schema.paymentOrder.status, 'pending'),
+      ))
+      .returning()
+
+    if (!claimed)
+      return { applied: false as const }
+
+    const credit = await deps.billing.creditFlux({
+      userId: input.order.userId,
+      amount: input.fluxAmount,
+      requestId: input.order.id,
+      description: `Flux pack ${claimed.packKey ?? 'unknown'}`,
+      source: 'payment.pack',
+      tx,
+    })
+
+    if (input.facts.providerCustomerId) {
+      await upsertProviderAccount(tx, {
+        userId: input.order.userId,
+        provider: input.order.provider,
+        providerCustomerId: input.facts.providerCustomerId,
+      })
+    }
+
+    return {
+      applied: true as const,
+      userId: input.order.userId,
+      fluxAmount: input.fluxAmount,
+      balanceAfter: credit.balanceAfter,
+    }
+  }
+
+  /**
+   * Stripe-style claim: pending order already exists from startPack.
+   */
+  async function claimExistingOrder(facts: ConfirmationFacts): Promise<ApplyConfirmationResult> {
+    const paymentOrderId = facts.paymentOrderId
+    if (!paymentOrderId)
+      throw createInternalError('Payment confirmation is missing payment_order_id')
+
+    const result = await deps.db.transaction(async (tx) => {
+      const [order] = await tx
+        .select()
+        .from(schema.paymentOrder)
+        .where(eq(schema.paymentOrder.id, paymentOrderId))
+        .for('update')
+
+      if (!order)
+        throw createInternalError('Payment order not found')
+
+      switch (facts.status) {
+        case 'paid': {
+          if (order.status === 'paid')
+            return { applied: false as const }
+
+          if (order.status !== 'pending')
+            return { applied: false as const }
+
+          const fluxAmount = order.fluxAmount
+          if (fluxAmount == null || fluxAmount <= 0)
+            throw createInternalError('Payment order is missing flux_amount')
+
+          return creditClaimedOrder(tx, { order, facts, fluxAmount })
+        }
+        case 'canceled':
+        case 'expired': {
+          if (order.status !== 'pending')
+            return { applied: false as const }
+
+          await tx.update(schema.paymentOrder)
+            .set({
+              status: facts.status,
+              providerOrderId: facts.providerOrderId,
+              providerData: facts.providerData ?? order.providerData,
+              updatedAt: new Date(),
+            })
+            .where(and(
+              eq(schema.paymentOrder.id, order.id),
+              eq(schema.paymentOrder.status, 'pending'),
+            ))
+
+          return { applied: false as const }
+        }
+        default: {
+          const exhaustive: never = facts.status
+          throw createInternalError(`Unhandled payment confirmation status: ${String(exhaustive)}`)
+        }
+      }
+    })
+
+    await syncCreditCache(result)
+    return result
+  }
+
+  /**
+   * Evidence-first claim (Apple IAP): insert paid order by providerOrderId, or
+   * replay when the row already exists.
+   */
+  async function claimEvidenceOrder(facts: ConfirmationFacts): Promise<ApplyConfirmationResult> {
+    if (facts.status !== 'paid')
+      throw createInternalError('Evidence confirmation only supports paid status')
+    if (!facts.userId)
+      throw createInternalError('Evidence confirmation is missing userId')
+    if (!facts.packKey || facts.fluxAmount == null || facts.fluxAmount <= 0)
+      throw createInternalError('Evidence confirmation is missing pack snapshot')
+
+    const userId = facts.userId
+    const packKey = facts.packKey
+    const fluxAmount = facts.fluxAmount
+
+    const result = await deps.db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(schema.paymentOrder)
+        .where(and(
+          eq(schema.paymentOrder.provider, facts.provider),
+          eq(schema.paymentOrder.providerOrderId, facts.providerOrderId),
+        ))
+        .for('update')
+        .limit(1)
+
+      if (existing) {
+        if (existing.status === 'paid')
+          return { applied: false as const }
+        if (existing.status === 'pending')
+          return creditClaimedOrder(tx, { order: existing, facts, fluxAmount })
+        return { applied: false as const }
+      }
+
+      const [inserted] = await tx.insert(schema.paymentOrder).values({
+        userId,
+        provider: facts.provider,
+        providerOrderId: facts.providerOrderId,
+        status: 'paid',
+        packKey,
+        fluxAmount,
+        amount: facts.amount,
+        currency: facts.currency,
+        creditedAt: new Date(),
+        providerData: facts.providerData,
+      }).onConflictDoNothing().returning()
+
+      if (!inserted) {
+        const [raced] = await tx
+          .select({ status: schema.paymentOrder.status })
+          .from(schema.paymentOrder)
+          .where(and(
+            eq(schema.paymentOrder.provider, facts.provider),
+            eq(schema.paymentOrder.providerOrderId, facts.providerOrderId),
+          ))
+          .limit(1)
+        if (raced?.status === 'paid')
+          return { applied: false as const }
+        throw createInternalError('Evidence confirmation lost the insert race')
+      }
+
+      const credit = await deps.billing.creditFlux({
+        userId,
+        amount: fluxAmount,
+        requestId: inserted.id,
+        description: `Flux pack ${packKey}`,
+        source: 'payment.pack',
+        tx,
+      })
+
+      if (facts.providerCustomerId) {
+        await upsertProviderAccount(tx, {
+          userId,
+          provider: facts.provider,
+          providerCustomerId: facts.providerCustomerId,
+        })
+      }
+
+      return {
+        applied: true as const,
+        userId,
+        fluxAmount,
+        balanceAfter: credit.balanceAfter,
+      }
+    })
+
+    await syncCreditCache(result)
+    return result
   }
 
   return {
@@ -183,109 +414,10 @@ export function createPaymentService(deps: PaymentServiceDeps) {
     },
 
     async applyConfirmation(facts: ConfirmationFacts): Promise<ApplyConfirmationResult> {
-      if (!facts.paymentOrderId)
-        throw createInternalError('Payment confirmation is missing payment_order_id')
+      if (facts.paymentOrderId)
+        return claimExistingOrder(facts)
 
-      const paymentOrderId = facts.paymentOrderId
-      const result = await deps.db.transaction(async (tx) => {
-        const [order] = await tx
-          .select()
-          .from(schema.paymentOrder)
-          .where(eq(schema.paymentOrder.id, paymentOrderId))
-          .for('update')
-
-        if (!order)
-          throw createInternalError('Payment order not found')
-
-        switch (facts.status) {
-          case 'paid': {
-            if (order.status === 'paid')
-              return { applied: false as const }
-
-            if (order.status !== 'pending')
-              return { applied: false as const }
-
-            const fluxAmount = order.fluxAmount
-            if (fluxAmount == null || fluxAmount <= 0)
-              throw createInternalError('Payment order is missing flux_amount')
-
-            const [claimed] = await tx.update(schema.paymentOrder)
-              .set({
-                status: 'paid',
-                creditedAt: new Date(),
-                providerOrderId: facts.providerOrderId,
-                amount: facts.amount ?? order.amount,
-                currency: facts.currency ?? order.currency,
-                providerData: facts.providerData ?? order.providerData,
-                updatedAt: new Date(),
-              })
-              .where(and(
-                eq(schema.paymentOrder.id, order.id),
-                eq(schema.paymentOrder.status, 'pending'),
-              ))
-              .returning()
-
-            if (!claimed)
-              return { applied: false as const }
-
-            const credit = await deps.billing.creditFlux({
-              userId: order.userId,
-              amount: fluxAmount,
-              requestId: order.id,
-              description: `Flux pack ${claimed.packKey ?? 'unknown'}`,
-              source: 'payment.pack',
-              tx,
-            })
-
-            if (facts.providerCustomerId) {
-              await upsertProviderAccount(tx, {
-                userId: order.userId,
-                provider: order.provider,
-                providerCustomerId: facts.providerCustomerId,
-              })
-            }
-
-            return {
-              applied: true as const,
-              userId: order.userId,
-              fluxAmount,
-              balanceAfter: credit.balanceAfter,
-            }
-          }
-          case 'canceled':
-          case 'expired': {
-            if (order.status !== 'pending')
-              return { applied: false as const }
-
-            await tx.update(schema.paymentOrder)
-              .set({
-                status: facts.status,
-                providerOrderId: facts.providerOrderId,
-                providerData: facts.providerData ?? order.providerData,
-                updatedAt: new Date(),
-              })
-              .where(and(
-                eq(schema.paymentOrder.id, order.id),
-                eq(schema.paymentOrder.status, 'pending'),
-              ))
-
-            return { applied: false as const }
-          }
-          default: {
-            const exhaustive: never = facts.status
-            throw createInternalError(`Unhandled payment confirmation status: ${String(exhaustive)}`)
-          }
-        }
-      })
-
-      if (result.applied) {
-        await deps.billing.syncFluxCache(result.userId, result.balanceAfter, {
-          amount: result.fluxAmount,
-          source: 'payment.pack',
-        })
-      }
-
-      return result
+      return claimEvidenceOrder(facts)
     },
 
     async cancel(input: { paymentOrderId: string }) {

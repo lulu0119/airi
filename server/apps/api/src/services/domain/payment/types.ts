@@ -12,6 +12,7 @@ export type ConfirmationStatus = typeof CONFIRMATION_STATUSES[number]
 
 export interface CatalogProviderIds {
   stripe?: { priceId: string }
+  appleIap?: { productId: string }
 }
 
 export interface ProviderProductRef {
@@ -30,6 +31,7 @@ export interface FluxPack {
 export interface FluxPackListItem {
   packKey: string
   stripePriceId?: string
+  appleProductId?: string
   label: string
   defaultCurrency: string
   currencies: Record<string, string>
@@ -66,6 +68,13 @@ export interface ConfirmationFacts {
   currency?: string
   providerCustomerId?: string
   providerData?: Record<string, unknown>
+  /**
+   * Evidence-first channels (Apple IAP) set these when there is no prior
+   * pending `payment_order`. CORE inserts-or-claims by `providerOrderId`.
+   */
+  userId?: string
+  packKey?: string
+  fluxAmount?: number
 }
 
 export type ApplyConfirmationResult
@@ -92,7 +101,7 @@ export interface ProviderCreateResult {
 }
 
 /**
- * Internal Provider seam. Stripe satisfies this.
+ * Internal Provider seam. Stripe and Apple IAP satisfy this.
  *
  * Channel routes call {@link PaymentProvider.confirmed} after they verify
  * the native payload. CORE calls {@link PaymentProvider.create}.
