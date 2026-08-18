@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { FluxPackListItem, FluxPlanListItem, FluxSubscriptionStats } from '@proj-airi/server-sdk-shared'
 import type { FluxBalanceBucket } from '@proj-airi/stage-ui/composables/use-analytics'
 
 import { isFluxPurchaseDisabled, isStageTamagotchi } from '@proj-airi/stage-shared'
@@ -28,37 +29,11 @@ const {
 
 const fluxPurchaseDisabled = isFluxPurchaseDisabled()
 
-interface FluxPackage {
-  packKey: string
-  stripePriceId?: string
-  label: string
-  defaultCurrency: string
-  currencies: Record<string, string>
-  recommended?: boolean
-}
-
-// NOTICE: Manual interface instead of hono InferResponseType because hono client
-// type instantiation hits TS recursion limits ("excessively deep and possibly infinite").
-// Keep this manual shape aligned with the API response.
-interface FluxPlan {
-  planKey: string
-  stripePriceId?: string
-  label: string
-  periodQuota: number
-  periodMonths: number
-  defaultCurrency: string
-  currencies: Record<string, string>
-  recommended?: boolean
-}
-
-interface FluxSubscriptionStats {
-  planKey: string
-  provider: string
-  periodQuotaRemaining: number
-  periodQuotaTotal: number
-  resetAt: string
-  useBalance: boolean
-}
+// NOTICE:
+// Prefer these hand-written DTOs over Hono InferResponseType.
+// InferResponseType on Stripe/flux routes hits the TypeScript recursion limit.
+// Source: packages/server-sdk-shared Flux* exports.
+// Removal: when InferResponseType typechecks again.
 
 interface AuditRecord {
   id: string
@@ -76,8 +51,8 @@ const managingPortal = ref(false)
 const useBalanceUpdating = ref(false)
 const message = ref<{ type: 'success' | 'error', text: string } | null>(null)
 const checkoutReturnMessageActive = ref(false)
-const packages = ref<FluxPackage[]>([])
-const plans = ref<FluxPlan[]>([])
+const packages = ref<FluxPackListItem[]>([])
+const plans = ref<FluxPlanListItem[]>([])
 const selectedCurrency = ref<string>('usd')
 const subscription = ref<FluxSubscriptionStats | null>(null)
 const capacity = ref(0)
@@ -179,7 +154,10 @@ async function fetchStats() {
   try {
     const res = await client.api.v1.flux.stats.$get()
     if (res.ok) {
-      // NOTICE: Manual cast — same hono InferResponseType recursion limit as packs.
+      // NOTICE:
+      // Manual cast: same InferResponseType recursion limit as pack/plan DTOs.
+      // Source: packages/server-sdk-shared FluxSubscriptionStats.
+      // Removal: when InferResponseType typechecks again.
       const data = await res.json() as {
         capacity: number
         subscription: FluxSubscriptionStats | null
@@ -314,7 +292,7 @@ async function fetchPackages() {
   try {
     const res = await client.api.v1.stripe.packages.$get()
     if (res.ok) {
-      const data = await res.json() as FluxPackage[]
+      const data = await res.json() as FluxPackListItem[]
       packages.value = data
       if (data.length > 0 && plans.value.length === 0)
         selectedCurrency.value = data[0].defaultCurrency
@@ -330,7 +308,7 @@ async function fetchPlans() {
   try {
     const res = await client.api.v1.stripe.plans.$get()
     if (res.ok) {
-      const data = await res.json() as FluxPlan[]
+      const data = await res.json() as FluxPlanListItem[]
       plans.value = data
       if (data.length > 0)
         selectedCurrency.value = data[0].defaultCurrency
@@ -460,6 +438,9 @@ async function handleBuy(packKey: string) {
 }
 
 async function handleSubscribe(planKey: string) {
+  if (isSubscriber.value)
+    return
+
   loadingPlanKey.value = planKey
   checkoutReturnMessageActive.value = false
   message.value = null
@@ -675,7 +656,7 @@ const checkoutBusy = computed(() => loadingPackKey.value !== null || loadingPlan
 
       <!-- Plans -->
       <div
-        v-if="plans.length > 0"
+        v-if="plans.length > 0 && !isSubscriber"
         :class="['flex flex-col gap-4']"
       >
         <h3 :class="['text-lg font-semibold']">

@@ -905,9 +905,6 @@ pages:
       title: Plans
       subscribe: Subscribe
       error: Failed to load plans. Please try again later.
-    hardStop:
-      quotaExhausted: Monthly Flux quota exhausted
-      openFlux: Open Flux settings
     checkout:
       success: Payment successful! Your Flux has been topped up.
       canceled: Payment was canceled.

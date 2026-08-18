@@ -2,8 +2,6 @@ import type { RevenueMetrics } from '../../../../otel'
 import type { ConfigKVService } from '../../../../services/adapters/config-kv'
 import type { UsageInfo } from '../../../../services/domain/billing/billing'
 import type { BillingService } from '../../../../services/domain/billing/billing-service'
-import type { FluxMeter } from '../../../../services/domain/billing/flux-meter'
-import type { FluxService } from '../../../../services/domain/flux'
 
 import { calculateFluxFromUsage } from '../../../../services/domain/billing/billing'
 import { GEN_AI_ATTR_REQUEST_MODEL } from '../../../../utils/observability'
@@ -28,14 +26,8 @@ export interface ChatBillingPolicy {
   fluxPer1kTokens?: number
 }
 
-export interface TtsBillingAuthorization {
-  balance: number
-  inputChars: number
-}
-
 export interface OpenAiRouteBilling {
   authorizeChat: (userId: string) => Promise<ChatBillingPolicy>
-  authorizeTts: (userId: string, inputText: string) => Promise<TtsBillingAuthorization>
   priceChatUsage: (usage: UsageInfo, policy: ChatBillingPolicy) => number
   recordChatDebitFailure: (input: {
     amount: number
@@ -43,21 +35,12 @@ export interface OpenAiRouteBilling {
     stage: 'streaming' | 'non_streaming'
   }) => void
   settleChat: (input: Omit<ChatFluxDebitInput, 'billingService' | 'revenue'>) => Promise<{ charged: number, source: 'quota' | 'balance' }>
-  settleTts: (input: {
-    userId: string
-    inputText: string
-    currentBalance: number
-    requestId: string
-    model: string
-  }) => Promise<{ fluxDebited: number, source?: 'quota' | 'balance' }>
 }
 
 export function createOpenAiRouteBilling(deps: {
   billingService: BillingService
   configKV: ConfigKVService
-  fluxService: FluxService
   revenue?: RevenueMetrics | null
-  ttsMeter: FluxMeter
 }): OpenAiRouteBilling {
   // NOTICE: Billing is best-effort — chat flux is debited AFTER the LLM
   // response is sent. This is a deliberate tradeoff: users get lower latency
@@ -108,39 +91,7 @@ export function createOpenAiRouteBilling(deps: {
     })
   }
 
-  async function authorizeTts(userId: string, inputText: string): Promise<TtsBillingAuthorization> {
-    const auth = await deps.billingService.authorizeFluxSpend({
-      userId,
-      minimumAmount: 1,
-    })
-
-    // Pre-flight: refuse before hitting upstream if this segment would push the
-    // user past their balance. Quota-backed users skip the balance gate.
-    // Cheap-path requests below the Flux threshold still pass when the user
-    // has at least 1 Flux (or remaining quota).
-    if (auth.source === 'balance')
-      await deps.ttsMeter.assertCanAfford(userId, inputText.length, auth.balance)
-
-    return { balance: auth.balance, inputChars: inputText.length }
-  }
-
-  async function settleTts(input: {
-    userId: string
-    inputText: string
-    currentBalance: number
-    requestId: string
-    model: string
-  }) {
-    return deps.ttsMeter.accumulate({
-      userId: input.userId,
-      units: input.inputText.length,
-      currentBalance: input.currentBalance,
-      requestId: input.requestId,
-      metadata: { model: input.model },
-    })
-  }
-
-  return { authorizeChat, authorizeTts, priceChatUsage, recordChatDebitFailure, settleChat, settleTts }
+  return { authorizeChat, priceChatUsage, recordChatDebitFailure, settleChat }
 }
 
 export async function debitChatFlux(input: ChatFluxDebitInput): Promise<{ charged: number, source: 'quota' | 'balance' }> {

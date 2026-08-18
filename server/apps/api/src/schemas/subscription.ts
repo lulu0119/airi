@@ -30,11 +30,6 @@ export const subscription = pgTable('subscription', {
   periodQuotaUpdatedAt: timestamp('period_quota_updated_at').defaultNow().notNull(),
   /** When true, consume falls through to Flux balance after quota is exhausted. */
   useBalance: boolean('use_balance').notNull().default(false),
-  /**
-   * Last consume requestId that charged quota. Immediate retries with the same
-   * id skip a second counter bump.
-   */
-  lastConsumeRequestId: text('last_consume_request_id'),
   providerData: jsonb('provider_data').$type<Record<string, unknown>>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

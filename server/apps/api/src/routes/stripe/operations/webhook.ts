@@ -1,12 +1,12 @@
 import type Stripe from 'stripe'
 
 import type { RevenueMetrics } from '../../../otel'
-import type { ConfigKVService } from '../../../services/adapters/config-kv'
 import type { PaymentProvider, PaymentService } from '../../../services/domain/payment'
 import type { ProductEventService } from '../../../services/domain/product-events'
 
 import { useLogger } from '@guiiai/logg'
 
+import { invoicePaid, subscriptionEvent } from '../../../services/domain/payment/adapters/stripe'
 import { createBadRequestError, createServiceUnavailableError } from '../../../utils/error'
 import { errorMessageFromUnknown } from '../../../utils/error-message'
 
@@ -17,7 +17,6 @@ export interface WebhookOperationDeps {
   webhookSecret: string | undefined
   stripeAdapter: PaymentProvider
   payment: PaymentService
-  configKV: ConfigKVService
   metrics?: RevenueMetrics | null
   productEventService?: ProductEventService
 }
@@ -101,22 +100,22 @@ export function createWebhookOperation(deps: WebhookOperationDeps) {
         break
       }
       case 'customer.subscription.deleted': {
-        const subscription = event.data.object
+        const facts = subscriptionEvent(event.data.object)
         await deps.payment.endSubscription({
           provider: 'stripe',
-          providerSubscriptionId: subscription.id,
+          providerSubscriptionId: facts.providerSubscriptionId,
           status: 'ended',
         })
         deps.metrics?.stripeSubscriptionEvent.add(1, { event_type: event.type })
         break
       }
       case 'customer.subscription.updated': {
-        const subscription = event.data.object
+        const facts = subscriptionEvent(event.data.object)
         // past_due: keep quota (OpenCode / D9). incomplete_expired ends below.
-        if (subscription.status === 'incomplete_expired') {
+        if (facts.status === 'incomplete_expired') {
           await deps.payment.endSubscription({
             provider: 'stripe',
-            providerSubscriptionId: subscription.id,
+            providerSubscriptionId: facts.providerSubscriptionId,
             status: 'ended',
           })
         }
@@ -138,25 +137,20 @@ export function createWebhookOperation(deps: WebhookOperationDeps) {
   }
 }
 
-async function handleInvoicePaid(deps: WebhookOperationDeps, invoice: Stripe.Invoice) {
-  const subscriptionId = readInvoiceSubscriptionId(invoice)
+async function handleInvoicePaid(deps: WebhookOperationDeps, payload: unknown) {
+  const facts = invoicePaid(payload)
 
-  if (!subscriptionId) {
-    logger.withFields({ invoiceId: invoice.id }).log('Ignoring invoice.paid without subscription')
+  if (!facts.subscriptionId) {
+    logger.withFields({ invoiceId: facts.invoiceId }).log('Ignoring invoice.paid without subscription')
     return
   }
 
   if (!deps.stripe) {
-    logger.withFields({ invoiceId: invoice.id }).warn('Stripe client missing for invoice.paid')
+    logger.withFields({ invoiceId: facts.invoiceId }).warn('Stripe client missing for invoice.paid')
     return
   }
 
-  const customerId = typeof invoice.customer === 'string'
-    ? invoice.customer
-    : invoice.customer && typeof invoice.customer === 'object' && 'id' in invoice.customer
-      ? invoice.customer.id
-      : undefined
-
+  const subscriptionId = facts.subscriptionId
   let planKey: string | undefined
   let paymentOrderId: string | undefined
   let userId: string | undefined
@@ -178,87 +172,56 @@ async function handleInvoicePaid(deps: WebhookOperationDeps, invoice: Stripe.Inv
     plan = await deps.payment.getFluxPlanByKey(planKey)
   }
   else {
-    const providerProductId = priceId ?? readInvoiceLinePriceId(invoice)
+    const providerProductId = priceId ?? facts.providerProductId
     plan = providerProductId
       ? await deps.payment.resolvePlan({ provider: 'stripe', providerProductId })
       : null
   }
 
   if (!plan) {
-    logger.withFields({ invoiceId: invoice.id, subscriptionId }).warn('invoice.paid missing planKey mapping')
+    logger.withFields({ invoiceId: facts.invoiceId, subscriptionId }).warn('invoice.paid missing planKey mapping')
     return
   }
 
   const result = await deps.payment.applyPlanInvoice({
     provider: 'stripe',
-    providerInvoiceId: invoice.id,
+    providerInvoiceId: facts.invoiceId,
     providerSubscriptionId: subscriptionId,
-    providerCustomerId: customerId,
+    providerCustomerId: facts.customerId,
     userId,
     planKey: plan.key,
     periodQuota: plan.periodQuota,
-    amount: invoice.amount_paid ?? undefined,
-    currency: invoice.currency ?? undefined,
+    amount: facts.amount,
+    currency: facts.currency,
     paymentOrderId,
     providerData: {
-      invoiceId: invoice.id,
+      invoiceId: facts.invoiceId,
       subscriptionId,
-      customerId,
-      billingReason: invoice.billing_reason,
+      customerId: facts.customerId,
+      billingReason: facts.billingReason,
     },
   })
 
   if (result.applied) {
     deps.metrics?.stripeCheckoutCompleted.add(1)
-    if (invoice.amount_paid != null && invoice.currency) {
-      deps.metrics?.stripeRevenue.add(invoice.amount_paid, {
-        currency: invoice.currency,
+    if (facts.amount != null && facts.currency) {
+      deps.metrics?.stripeRevenue.add(facts.amount, {
+        currency: facts.currency,
         source: 'subscription',
       })
     }
     void deps.productEventService?.track({
       userId: result.userId,
       feature: 'billing',
-      action: invoice.billing_reason === 'subscription_create' ? 'subscription_started' : 'subscription_renewed',
+      action: facts.billingReason === 'subscription_create' ? 'subscription_started' : 'subscription_renewed',
       status: 'succeeded',
       source: 'stripe.webhook',
       metadata: {
         plan_key: plan.key,
         period_quota: result.periodQuota,
-        stripe_invoice_id: invoice.id,
+        stripe_invoice_id: facts.invoiceId,
         stripe_subscription_id: subscriptionId,
       },
     })
   }
-}
-
-function readInvoiceSubscriptionId(invoice: Stripe.Invoice): string | undefined {
-  const withSubscription = invoice as Stripe.Invoice & {
-    subscription?: string | { id: string } | null
-    parent?: { subscription_details?: { subscription?: string | { id: string } | null } } | null
-  }
-
-  const direct = withSubscription.subscription
-  if (typeof direct === 'string')
-    return direct
-  if (direct && typeof direct === 'object' && 'id' in direct)
-    return direct.id
-
-  const nested = withSubscription.parent?.subscription_details?.subscription
-  if (typeof nested === 'string')
-    return nested
-  if (nested && typeof nested === 'object' && 'id' in nested)
-    return nested.id
-
-  return undefined
-}
-
-function readInvoiceLinePriceId(invoice: Stripe.Invoice): string | undefined {
-  const line = invoice.lines?.data?.[0] as { price?: string | { id?: string } | null } | undefined
-  const linePrice = line?.price
-  if (typeof linePrice === 'string')
-    return linePrice
-  if (linePrice && typeof linePrice === 'object')
-    return linePrice.id
-  return undefined
 }

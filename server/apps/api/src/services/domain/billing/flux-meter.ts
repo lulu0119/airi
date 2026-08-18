@@ -122,18 +122,20 @@ export function createFluxMeter(
     return raw == null ? 0 : Number(raw)
   }
 
-  /**
-   * Pre-flight balance check. Throws 402 if the user cannot afford the worst-case
-   * Flux consumption implied by current debt + new units. Call before invoking
-   * the upstream service so we fail fast and refuse to render unbillable usage.
-   */
-  async function assertCanAfford(userId: string, newUnits: number, currentBalance: number): Promise<void> {
+  /** Projected Flux for debt + units; floor of 1 blocks zero-balance dust float. */
+  async function requiredFlux(userId: string, newUnits: number): Promise<number> {
     const runtime = await getRuntime()
     const existingDebt = await readDebt(userId)
     const projectedFlux = Math.floor((existingDebt + newUnits) / runtime.unitsPerFlux)
-    // At minimum require the user can cover a single Flux crossing; avoids
-    // letting zero-balance users accumulate indefinitely on the boundary.
-    const required = Math.max(projectedFlux, currentBalance <= 0 ? 1 : 0)
+    return Math.max(projectedFlux, 1)
+  }
+
+  /**
+   * Throws 402 if current balance cannot cover debt + newUnits.
+   * Call before upstream so unbillable usage is refused early.
+   */
+  async function assertCanAfford(userId: string, newUnits: number, currentBalance: number): Promise<void> {
+    const required = await requiredFlux(userId, newUnits)
     if (currentBalance < required) {
       metrics?.ttsPreflightRejections.add(1, { meter: config.name, reason: 'insufficient_balance' })
       throw createPaymentRequiredError('Insufficient flux')
@@ -287,6 +289,7 @@ export function createFluxMeter(
   }
 
   return {
+    requiredFlux,
     assertCanAfford,
     accumulate,
     peekDebt: readDebt,

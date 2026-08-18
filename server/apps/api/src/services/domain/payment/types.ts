@@ -1,3 +1,7 @@
+import type { FluxPackListItem, FluxPlanListItem } from '@proj-airi/server-sdk-shared'
+
+export type { FluxPackListItem, FluxPlanListItem }
+
 export const PAYMENT_PROVIDERS = ['stripe', 'apple_iap', 'steam'] as const
 
 export type PaymentProviderName = typeof PAYMENT_PROVIDERS[number]
@@ -49,17 +53,6 @@ export interface FluxPlan {
   defaultCurrency: string
   displayPrices: Record<string, string>
   providers: CatalogProviderIds
-}
-
-export interface FluxPlanListItem {
-  planKey: string
-  stripePriceId?: string
-  label: string
-  periodQuota: number
-  periodMonths: number
-  defaultCurrency: string
-  currencies: Record<string, string>
-  recommended: boolean
 }
 
 export interface PackStartContext {

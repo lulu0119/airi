@@ -176,6 +176,13 @@
       "when": 1786878000000,
       "tag": "0024_subscription_quota",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786981413615,
+      "tag": "0025_subscription_quota_ledger",
+      "breakpoints": true
     }
   ]
 }

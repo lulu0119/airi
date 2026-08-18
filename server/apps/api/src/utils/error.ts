@@ -57,8 +57,8 @@ export function createPaymentRequiredError(message: string, details?: unknown) {
 /**
  * Creates a conflict error (409)
  */
-export function createConflictError(message: string, details?: unknown) {
-  return new ApiError(409, 'CONFLICT', message, details)
+export function createConflictError(message: string, errorCode = 'CONFLICT', details?: unknown) {
+  return new ApiError(409, errorCode, message, details)
 }
 
 /**

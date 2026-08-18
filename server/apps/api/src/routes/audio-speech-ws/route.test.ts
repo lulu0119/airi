@@ -163,10 +163,13 @@ function makeFakeDeps(overrides: {
   upstreamURL: string
   restBaseURL?: string
   fluxBalance: number
+  billingSource?: 'quota' | 'balance'
   decryptedKey?: string
   streamingModels?: Array<{ id: string, name?: string, description?: string }>
 }) {
+  const billingSource = overrides.billingSource ?? 'balance'
   const ttsMeter = {
+    requiredFlux: vi.fn(async () => 1),
     assertCanAfford: vi.fn(async (_userId: string, _newUnits: number, currentBalance: number) => {
       if (currentBalance <= 0)
         throw Object.assign(new Error('Insufficient flux'), { statusCode: 402 })
@@ -181,8 +184,22 @@ function makeFakeDeps(overrides: {
   const fluxService = {
     getFlux: vi.fn(async () => ({ flux: overrides.fluxBalance })),
   }
+  const billingService = {
+    authorizeFluxSpend: vi.fn(async (input: { minimumAmount: number }) => {
+      if (billingSource === 'quota')
+        return { source: 'quota' as const, balance: overrides.fluxBalance, quotaRemaining: 1000 }
+      if (overrides.fluxBalance < input.minimumAmount)
+        throw Object.assign(new Error('Insufficient flux'), { statusCode: 402 })
+      return { source: 'balance' as const, balance: overrides.fluxBalance, quotaRemaining: 0 }
+    }),
+  }
   const requestLogService = {
     logRequest: vi.fn(async () => undefined),
+  }
+  const productEventService = {
+    track: vi.fn(async () => undefined),
+    trackGeneration: vi.fn(async () => undefined),
+    countDistinctUsersByFeature: vi.fn(async () => []),
   }
   const configKV = {
     getOptional: vi.fn(async (key: string) => {
@@ -207,7 +224,7 @@ function makeFakeDeps(overrides: {
     decryptKey: vi.fn(() => Buffer.from(overrides.decryptedKey ?? 'mock-upstream-token', 'utf8')),
   }
 
-  return { configKV, envelopeCrypto, fluxService, ttsMeter, requestLogService }
+  return { configKV, envelopeCrypto, fluxService, billingService, ttsMeter, requestLogService, productEventService }
 }
 
 /** Drives the WSEvents lifecycle as if a real client had connected. */
@@ -294,6 +311,17 @@ describe('audio-speech-ws route', () => {
       status: 200,
       fluxConsumed: 1,
     })
+    expect(deps.productEventService.track).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-123',
+      feature: 'tts',
+      action: 'speech_succeeded',
+      status: 'succeeded',
+      model: 'volcengine/seed-tts-2.0',
+      metadata: expect.objectContaining({
+        voice_id: 'mock',
+        voice_type: 'official_selected',
+      }),
+    }))
   })
 
   it('refuses the session with insufficient_flux when the user is broke', async () => {
@@ -319,6 +347,54 @@ describe('audio-speech-ws route', () => {
     })
     expect(client.closed).toBe(true)
     expect(client.closeCode).toBe(1008)
+    expect(deps.productEventService.track).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-broke',
+      feature: 'tts',
+      action: 'speech_blocked',
+      status: 'blocked',
+      source: 'chat_auto_tts',
+      reason: 'insufficient_balance',
+      metadata: expect.objectContaining({
+        trigger: 'auto',
+        block_reason: 'insufficient_balance',
+        balance_state: 'insufficient',
+        flux_balance_bucket: 'zero',
+      }),
+    }))
+  })
+
+  it('lets a quota user with balance 0 pass streaming preflight', async () => {
+    const audioPayload = Buffer.from('FAKE_AUDIO_BYTES_AAAAAAAAAA', 'utf8')
+    upstream = await startMockUpstream([
+      { kind: 'json', payload: { event: 'session.started' } },
+      { kind: 'binary', bytes: audioPayload },
+      { kind: 'json', payload: { event: 'session.finished', payload: { usage: { text_words: 42 } } } },
+    ])
+
+    const deps = makeFakeDeps({
+      upstreamURL: upstream.url,
+      restBaseURL: upstream.restBaseURL,
+      fluxBalance: 0,
+      billingSource: 'quota',
+    })
+    const handlers = createAudioSpeechWsHandlers(deps as any)
+    const events = handlers('user-quota')
+    const client = makeMockClientWs()
+
+    await driveClientSession(events, client, [
+      JSON.stringify({ event: 'start', model: 'volcengine/seed-tts-2.0', voice: 'mock' }),
+      JSON.stringify({ event: 'text', text: 'hello streaming tts' }),
+      JSON.stringify({ event: 'finish' }),
+    ])
+    await new Promise(r => setTimeout(r, 200))
+
+    expect(deps.ttsMeter.requiredFlux).toHaveBeenCalledWith('user-quota', 2000)
+    expect(deps.billingService.authorizeFluxSpend).toHaveBeenCalledWith({
+      userId: 'user-quota',
+      minimumAmount: 1,
+    })
+    expect(upstream.receivedFrames.length).toBeGreaterThan(0)
+    expect(client.closeCode).not.toBe(1008)
   })
 
   it('refuses with streaming_tts_not_configured when UNSPEECH_UPSTREAM.streaming is empty', async () => {

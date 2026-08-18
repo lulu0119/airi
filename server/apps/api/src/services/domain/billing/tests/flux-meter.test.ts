@@ -101,6 +101,13 @@ describe('fluxMeter', () => {
     await expect(meter.assertCanAfford('u1', 5000, 2)).rejects.toMatchObject({ statusCode: 402 })
   })
 
+  it('returns at least 1 Flux from requiredFlux for sub-threshold units', async () => {
+    const meter = createFluxMeter(redis, billing, { name: 'tts', resolveRuntime: staticRuntime() })
+
+    await expect(meter.requiredFlux('u1', 200)).resolves.toBe(1)
+    await expect(meter.requiredFlux('u1', 5000)).resolves.toBe(5)
+  })
+
   it('allows sub-threshold accumulation when balance >= 1', async () => {
     const meter = createFluxMeter(redis, billing, { name: 'tts', resolveRuntime: staticRuntime() })
     await expect(meter.assertCanAfford('u1', 200, 1)).resolves.toBeUndefined()

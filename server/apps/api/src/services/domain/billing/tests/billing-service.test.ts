@@ -7,6 +7,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mockDB } from '../../../../libs/mock-db'
 import { createTestRedis } from '../../../../libs/tests/redis'
 import { userFluxRedisKey } from '../../../../utils/redis-keys'
+import { createSubscriptionService } from '../../subscription'
 import { createBillingService } from '../billing-service'
 
 import * as schema from '../../../../schemas'
@@ -334,6 +335,100 @@ describe('billingService', () => {
       // Invalidate, not write: next getFlux miss reloads truth from Postgres.
       expect(del).toHaveBeenCalledWith(userFluxRedisKey('user-billing-1'))
       expect(await redis.get(userFluxRedisKey('user-billing-1'))).toBeNull()
+    })
+  })
+
+  describe('consumeFluxForLLM quota path', () => {
+    it('charges quota, writes subscription_quota_ledger, and does not write flux_transaction', async () => {
+      const subscription = createSubscriptionService({ db })
+      const billing = createBillingService(db, redis, createMockConfigKV(), null, subscription)
+
+      await db.delete(schema.subscription).where(eq(schema.subscription.userId, 'user-billing-1'))
+      await db.delete(schema.subscriptionQuotaLedger).where(eq(schema.subscriptionQuotaLedger.userId, 'user-billing-1'))
+
+      await subscription.grantPeriod({
+        userId: 'user-billing-1',
+        provider: 'stripe',
+        providerSubscriptionId: 'sub_billing_1',
+        planKey: 'plus',
+        periodQuotaAmount: 1000,
+      })
+
+      const result = await billing.consumeFluxForLLM({
+        userId: 'user-billing-1',
+        amount: 8,
+        requestId: 'req-quota-ledger',
+        model: 'gpt-test',
+      })
+
+      expect(result.source).toBe('quota')
+      expect(result.charged).toBe(8)
+
+      const fluxRows = await db.select().from(schema.fluxTransaction).where(eq(schema.fluxTransaction.userId, 'user-billing-1'))
+      expect(fluxRows).toHaveLength(0)
+
+      const quotaRows = await db.select().from(schema.subscriptionQuotaLedger).where(eq(schema.subscriptionQuotaLedger.userId, 'user-billing-1'))
+      expect(quotaRows).toHaveLength(1)
+      expect(quotaRows[0]?.amount).toBe(8)
+      expect(quotaRows[0]?.requestId).toBe('req-quota-ledger')
+    })
+  })
+
+  describe('authorizeFluxSpend', () => {
+    it('lets a quota user through when balance is 0', async () => {
+      const subscription = createSubscriptionService({ db })
+      const billing = createBillingService(db, redis, createMockConfigKV(), null, subscription)
+
+      await db.delete(schema.subscription).where(eq(schema.subscription.userId, 'user-billing-1'))
+      await subscription.grantPeriod({
+        userId: 'user-billing-1',
+        provider: 'stripe',
+        providerSubscriptionId: 'sub_auth_quota',
+        planKey: 'plus',
+        periodQuotaAmount: 100,
+      })
+
+      const auth = await billing.authorizeFluxSpend({
+        userId: 'user-billing-1',
+        minimumAmount: 5,
+      })
+
+      expect(auth.source).toBe('quota')
+      expect(auth.balance).toBe(0)
+      expect(auth.quotaRemaining).toBe(100)
+    })
+
+    it('rejects a balance user with 402 when funds are below the projected TTS cost', async () => {
+      const billing = createBillingService(db, redis, createMockConfigKV())
+      await db.insert(schema.userFlux).values({ userId: 'user-billing-1', flux: 1 })
+
+      await expect(billing.authorizeFluxSpend({
+        userId: 'user-billing-1',
+        minimumAmount: 5,
+      })).rejects.toMatchObject({ statusCode: 402 })
+    })
+
+    // ROOT CAUSE:
+    // TTS preflight used minimumAmount: 1 and skipped the meter for quota users,
+    // so remaining 1 passed authorize while the request needed more Flux.
+    // After: callers pass ttsMeter.requiredFlux(...) as minimumAmount.
+    it('rejects a quota user when remaining is below the projected TTS cost', async () => {
+      const subscription = createSubscriptionService({ db })
+      const billing = createBillingService(db, redis, createMockConfigKV(), null, subscription)
+
+      await db.delete(schema.subscription).where(eq(schema.subscription.userId, 'user-billing-1'))
+      await subscription.grantPeriod({
+        userId: 'user-billing-1',
+        provider: 'stripe',
+        providerSubscriptionId: 'sub_auth_tts',
+        planKey: 'plus',
+        periodQuotaAmount: 1,
+      })
+
+      await expect(billing.authorizeFluxSpend({
+        userId: 'user-billing-1',
+        minimumAmount: 5,
+      })).rejects.toMatchObject({ errorCode: 'PAYMENT_REQUIRED' })
     })
   })
 })

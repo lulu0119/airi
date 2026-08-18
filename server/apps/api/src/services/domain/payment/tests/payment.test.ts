@@ -89,6 +89,8 @@ describe('payment CORE', () => {
   let redis: ReturnType<typeof createTestRedis>
   let configKV: ReturnType<typeof createPacksConfigKV>
   let payment: ReturnType<typeof createPaymentService>
+  let subscription: ReturnType<typeof createSubscriptionService>
+  let createCalls: ProviderCreateInput[]
   let applyDuringCreate: boolean
 
   beforeAll(async () => {
@@ -104,12 +106,14 @@ describe('payment CORE', () => {
     redis = createTestRedis()
     configKV = createPacksConfigKV([starterPack])
     applyDuringCreate = false
+    createCalls = []
     const billing = createBillingService(db, redis, configKV)
-    const subscription = createSubscriptionService({ db })
+    subscription = createSubscriptionService({ db })
 
     let service: ReturnType<typeof createPaymentService>
     const stripe = createTestPaymentProvider({
       onCreate: async (input) => {
+        createCalls.push(input)
         if (!applyDuringCreate)
           return
         if (input.kind !== 'pack')
@@ -139,6 +143,7 @@ describe('payment CORE', () => {
     await db.delete(schema.userFlux).where(eq(schema.userFlux.userId, 'user-pay-1'))
     await db.delete(schema.paymentOrder).where(eq(schema.paymentOrder.userId, 'user-pay-1'))
     await db.delete(schema.providerAccount).where(eq(schema.providerAccount.userId, 'user-pay-1'))
+    await db.delete(schema.subscriptionQuotaLedger).where(eq(schema.subscriptionQuotaLedger.userId, 'user-pay-1'))
     await db.delete(schema.subscription).where(eq(schema.subscription.userId, 'user-pay-1'))
   })
 
@@ -147,6 +152,20 @@ describe('payment CORE', () => {
       userId: 'user-pay-1',
       provider: 'stripe',
       packKey: 'starter',
+      startContext: {
+        currency: 'usd',
+        successUrl: 'https://example.test/success',
+        cancelUrl: 'https://example.test/cancel',
+        customerEmail: 'pay@example.com',
+      },
+    })
+  }
+
+  async function startPlusPlan() {
+    return payment.startPlan({
+      userId: 'user-pay-1',
+      provider: 'stripe',
+      planKey: 'plus',
       startContext: {
         currency: 'usd',
         successUrl: 'https://example.test/success',
@@ -342,5 +361,72 @@ describe('payment CORE', () => {
 
     const ledger = await db.select().from(schema.fluxTransaction).where(eq(schema.fluxTransaction.userId, 'user-pay-1'))
     expect(ledger).toHaveLength(1)
+
+  it('startPlan redirects when the user has no active subscription', async () => {
+    const started = await startPlusPlan()
+    expect(started.kind).toBe('redirect')
+    expect(started.url).toContain('checkout.stripe.test')
+    expect(createCalls).toHaveLength(1)
+    expect(createCalls[0]?.kind).toBe('plan')
+
+    const orders = await db.select().from(schema.paymentOrder).where(eq(schema.paymentOrder.userId, 'user-pay-1'))
+    expect(orders).toHaveLength(1)
+    expect(orders[0]?.planKey).toBe('plus')
+  })
+
+  it('startPlan returns 409 when the user already has an active subscription', async () => {
+    await subscription.grantPeriod({
+      userId: 'user-pay-1',
+      provider: 'stripe',
+      providerSubscriptionId: 'sub_existing',
+      planKey: 'plus',
+      periodQuotaAmount: 1000,
+    })
+
+    await expect(startPlusPlan()).rejects.toMatchObject({
+      statusCode: 409,
+      errorCode: 'ALREADY_SUBSCRIBED',
+    })
+
+    expect(createCalls).toHaveLength(0)
+    const orders = await db.select().from(schema.paymentOrder).where(eq(schema.paymentOrder.userId, 'user-pay-1'))
+    expect(orders).toHaveLength(0)
+  })
+
+  it('applyPlanInvoice does not apply a second paid subscription for the same user', async () => {
+    const first = await payment.applyPlanInvoice({
+      provider: 'stripe',
+      providerInvoiceId: 'in_first',
+      providerSubscriptionId: 'sub_first',
+      userId: 'user-pay-1',
+      planKey: 'plus',
+      periodQuota: 1000,
+      amount: 999,
+      currency: 'usd',
+    })
+    expect(first).toMatchObject({ applied: true, periodQuota: 1000 })
+
+    await subscription.tryConsumeQuota({ userId: 'user-pay-1', amount: 40 })
+
+    const second = await payment.applyPlanInvoice({
+      provider: 'stripe',
+      providerInvoiceId: 'in_second',
+      providerSubscriptionId: 'sub_second',
+      userId: 'user-pay-1',
+      planKey: 'plus',
+      periodQuota: 1000,
+      amount: 999,
+      currency: 'usd',
+    })
+    expect(second).toEqual({ applied: false })
+
+    const entitlement = await subscription.getEntitlement('user-pay-1')
+    expect(entitlement?.periodQuotaUsed).toBe(40)
+    expect(entitlement?.periodQuotaRemaining).toBe(960)
+
+    const orders = await db.select().from(schema.paymentOrder).where(eq(schema.paymentOrder.userId, 'user-pay-1'))
+    expect(orders).toHaveLength(1)
+    expect(orders[0]?.providerOrderId).toBe('in_first')
+    expect(orders[0]?.status).toBe('paid')
   })
 })

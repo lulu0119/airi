@@ -13,7 +13,6 @@ import { IOAttributes, IOEvents, IOSpanNames, IOSubsystems } from '@proj-airi/st
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
 import { shallowRef, toRaw } from 'vue'
-import { useI18n } from 'vue-i18n'
 
 import { getConversationAnalyticsSurface } from '../composables'
 import { activeTurnSpan, startSpan } from '../composables/use-io-tracer'
@@ -137,7 +136,6 @@ function retrySourceIndexFrom(messages: ChatHistoryItem[], index: number): numbe
 export type { QueuedSendSnapshot } from '@proj-airi/core-agent'
 
 export const useChatStore = defineStore('chat', () => {
-  const { t } = useI18n()
   const llmStore = useLLM()
   const llmToolsStore = useLlmToolsStore()
   const llmToolsetPromptsStore = useLlmToolsetPromptsStore()
@@ -349,14 +347,9 @@ export const useChatStore = defineStore('chat', () => {
     if (!chatSession.getSessionMessagesIfLoaded(sessionId))
       return
 
-    const raw = errorMessageFrom(error) ?? 'Unknown chat operation failure'
-    const content = raw.includes('Monthly Flux quota exhausted')
-      ? `${t('settings.pages.flux.hardStop.quotaExhausted')}\n\n[${t('settings.pages.flux.hardStop.openFlux')}](/settings/flux)`
-      : raw
-
     chatSession.appendSessionMessage(sessionId, {
       role: 'error',
-      content,
+      content: errorMessageFrom(error) ?? 'Unknown chat operation failure',
     })
   }
 

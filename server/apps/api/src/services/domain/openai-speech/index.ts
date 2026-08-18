@@ -1,5 +1,6 @@
 import type { GenAiMetrics } from '../../../otel'
 import type { ConfigKVService } from '../../adapters/config-kv'
+import type { BillingService } from '../billing/billing-service'
 import type { FluxMeter } from '../billing/flux-meter'
 import type { FluxService } from '../flux'
 import type { LlmRouterService } from '../llm-router'
@@ -43,6 +44,7 @@ function readOptionalNumber(record: Record<string, unknown> | undefined, key: st
 
 export interface OpenAiSpeechServiceDeps {
   fluxService: FluxService
+  billingService: BillingService
   configKV: ConfigKVService
   requestLogService: RequestLogService
   ttsMeter: FluxMeter
@@ -118,7 +120,11 @@ export function createOpenAiSpeechService(deps: OpenAiSpeechServiceDeps) {
 
     const flux = await deps.fluxService.getFlux(input.userId)
     try {
-      await deps.ttsMeter.assertCanAfford(input.userId, billingUnits, flux.flux)
+      const minimumAmount = await deps.ttsMeter.requiredFlux(input.userId, billingUnits)
+      await deps.billingService.authorizeFluxSpend({
+        userId: input.userId,
+        minimumAmount,
+      })
     }
     catch (err) {
       if (!(err instanceof ApiError) || err.statusCode !== 402)

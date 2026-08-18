@@ -1,3 +1,5 @@
+import type { FluxSubscriptionStats } from '@proj-airi/server-sdk-shared'
+
 import type { Database } from '../../libs/db'
 import type { SubscriptionService } from './subscription'
 
@@ -5,7 +7,7 @@ import { useLogger } from '@guiiai/logg'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 
 import * as schema from '../../schemas/flux-transaction'
-import * as llmSchema from '../../schemas/llm-request-log'
+import * as quotaLedger from '../../schemas/subscription-quota-ledger'
 
 const logger = useLogger('flux-transaction')
 
@@ -27,7 +29,7 @@ export interface HistoryRecord {
   description: string
   metadata: Record<string, unknown> | null
   createdAt: Date
-  /** `balance` for ledger rows; `quota` for period-quota llm_request_log rows. */
+  /** `balance` for ledger rows; `quota` for period-quota ledger rows. */
   billingSource: 'balance' | 'quota'
 }
 
@@ -46,8 +48,9 @@ export function createFluxTransactionService(db: Database, subscription?: Subscr
     },
 
     /**
-     * History = all flux_transaction rows plus llm_request_log rows with
-     * source=quota. Balance-sourced log rows are omitted (they duplicate debits).
+     * History = all flux_transaction rows plus subscription_quota_ledger rows.
+     * Balance-sourced llm_request_log rows are omitted (they duplicate debits).
+     * Quota llm_request_log rows are telemetry only and are not the ledger.
      *
      * Fetches a window from each source and merges in memory so mock DB and
      * Postgres share one code path.
@@ -61,12 +64,9 @@ export function createFluxTransactionService(db: Database, subscription?: Subscr
           orderBy: [desc(schema.fluxTransaction.createdAt)],
           limit: fetchLimit,
         }),
-        db.query.llmRequestLog.findMany({
-          where: and(
-            eq(llmSchema.llmRequestLog.userId, userId),
-            eq(llmSchema.llmRequestLog.source, 'quota'),
-          ),
-          orderBy: [desc(llmSchema.llmRequestLog.createdAt)],
+        db.query.subscriptionQuotaLedger.findMany({
+          where: eq(quotaLedger.subscriptionQuotaLedger.userId, userId),
+          orderBy: [desc(quotaLedger.subscriptionQuotaLedger.createdAt)],
           limit: fetchLimit,
         }),
       ])
@@ -84,13 +84,9 @@ export function createFluxTransactionService(db: Database, subscription?: Subscr
         ...quotaRows.map(row => ({
           id: row.id,
           type: 'debit',
-          amount: row.fluxConsumed,
-          description: row.model,
-          metadata: {
-            model: row.model,
-            ...(row.promptTokens != null && { promptTokens: row.promptTokens }),
-            ...(row.completionTokens != null && { completionTokens: row.completionTokens }),
-          },
+          amount: row.amount,
+          description: 'quota',
+          metadata: null,
           createdAt: row.createdAt,
           billingSource: 'quota' as const,
         })),
@@ -129,13 +125,13 @@ export function createFluxTransactionService(db: Database, subscription?: Subscr
         capacity: latestCredit?.balanceAfter ?? 0,
         subscription: entitlement
           ? {
-              planKey: entitlement.planKey,
-              provider: entitlement.provider,
-              periodQuotaRemaining: entitlement.periodQuotaRemaining,
-              periodQuotaTotal: entitlement.periodQuotaAmount,
-              resetAt: entitlement.resetAt,
-              useBalance: entitlement.useBalance,
-            }
+            planKey: entitlement.planKey,
+            provider: entitlement.provider,
+            periodQuotaRemaining: entitlement.periodQuotaRemaining,
+            periodQuotaTotal: entitlement.periodQuotaAmount,
+            resetAt: entitlement.resetAt,
+            useBalance: entitlement.useBalance,
+          } satisfies FluxSubscriptionStats
           : null,
       }
     },

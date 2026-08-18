@@ -4,8 +4,9 @@ import type { ConfigKVService } from '../../../adapters/config-kv'
 import type { ConfirmationFacts, FluxPack, FluxPackListItem, PaymentProvider, ProviderCreateInput, ProviderCreateResult } from '../types'
 
 import { useLogger } from '@guiiai/logg'
+import { array, looseObject, nullable, number, optional, safeParse, string, union } from 'valibot'
 
-import { createInternalError, createServiceUnavailableError } from '../../../../utils/error'
+import { createBadRequestError, createInternalError, createServiceUnavailableError } from '../../../../utils/error'
 
 const logger = useLogger('payment.stripe')
 
@@ -120,6 +121,118 @@ export function createStripePaymentProvider(
       return null
     },
   }
+}
+
+const stripeIdSchema = union([
+  string(),
+  looseObject({ id: string() }),
+])
+
+const invoicePaidSchema = looseObject({
+  id: string(),
+  customer: optional(nullable(stripeIdSchema)),
+  amount_paid: optional(nullable(number())),
+  currency: optional(nullable(string())),
+  billing_reason: optional(nullable(string())),
+  created: optional(nullable(number())),
+  status_transitions: optional(nullable(looseObject({
+    paid_at: optional(nullable(number())),
+  }))),
+  subscription: optional(nullable(stripeIdSchema)),
+  parent: optional(nullable(looseObject({
+    subscription_details: optional(nullable(looseObject({
+      subscription: optional(nullable(stripeIdSchema)),
+    }))),
+  }))),
+  lines: optional(nullable(looseObject({
+    data: optional(array(looseObject({
+      price: optional(nullable(union([
+        string(),
+        looseObject({ id: optional(string()) }),
+      ]))),
+      pricing: optional(nullable(looseObject({
+        price_details: optional(nullable(looseObject({
+          price: optional(string()),
+        }))),
+      }))),
+    }))),
+  }))),
+})
+
+export interface InvoicePaidFacts {
+  invoiceId: string
+  subscriptionId?: string
+  customerId?: string
+  providerProductId?: string
+  amount?: number
+  currency?: string
+  billingReason?: string
+  createdAt?: number
+  paidAt?: number
+}
+
+const subscriptionEventSchema = looseObject({
+  id: string(),
+  status: optional(nullable(string())),
+})
+
+export interface SubscriptionEventFacts {
+  providerSubscriptionId: string
+  status?: string
+}
+
+/**
+ * Maps Stripe `customer.subscription.*` to domain facts.
+ * Named export (not PaymentProvider): Apple/Steam have no Stripe subscription object.
+ */
+export function subscriptionEvent(payload: unknown): SubscriptionEventFacts {
+  const parsed = safeParse(subscriptionEventSchema, payload)
+  if (!parsed.success)
+    throw createBadRequestError('Invalid Stripe subscription payload', 'INVALID_SUBSCRIPTION')
+
+  return {
+    providerSubscriptionId: parsed.output.id,
+    status: parsed.output.status ?? undefined,
+  }
+}
+
+/**
+ * Maps Stripe `invoice.paid` to domain facts.
+ * Named export (not PaymentProvider): Apple/Steam have no invoice object.
+ */
+export function invoicePaid(payload: unknown): InvoicePaidFacts {
+  const parsed = safeParse(invoicePaidSchema, payload)
+  if (!parsed.success)
+    throw createBadRequestError('Invalid Stripe invoice payload', 'INVALID_INVOICE')
+
+  const invoice = parsed.output
+  const firstLine = invoice.lines?.data?.[0]
+  const linePrice = firstLine?.price
+  const linePriceId = typeof linePrice === 'string'
+    ? linePrice
+    : linePrice?.id
+  const nestedPriceId = firstLine?.pricing?.price_details?.price
+
+  return {
+    invoiceId: invoice.id,
+    subscriptionId: readStripeId(invoice.subscription)
+      ?? readStripeId(invoice.parent?.subscription_details?.subscription),
+    customerId: readStripeId(invoice.customer),
+    providerProductId: linePriceId ?? nestedPriceId,
+    amount: invoice.amount_paid ?? undefined,
+    currency: invoice.currency ?? undefined,
+    billingReason: invoice.billing_reason ?? undefined,
+    createdAt: invoice.created ?? undefined,
+    paidAt: invoice.status_transitions?.paid_at ?? undefined,
+  }
+}
+
+function readStripeId(value: string | { id: string } | null | undefined): string | undefined {
+  if (typeof value === 'string' && value.length > 0)
+    return value
+  if (value && typeof value === 'object' && typeof value.id === 'string' && value.id.length > 0)
+    return value.id
+  return undefined
 }
 
 async function createPackCheckout(

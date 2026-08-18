@@ -188,6 +188,7 @@ export async function buildApp(deps: AppDeps) {
     configKV: deps.configKV,
     envelopeCrypto: deps.envelopeCrypto,
     fluxService: deps.fluxService,
+    billingService: deps.billingService,
     ttsMeter: deps.ttsMeter,
     requestLogService: deps.requestLogService,
   })

@@ -59,6 +59,35 @@ export function createBillingService(
   }
 
   /**
+   * Shared authorize / consume-fallback path.
+   * `quotaAttempted` skips re-picking quota after tryConsumeQuota already failed.
+   * `allowPartialBalance` leaves the hard floor to debitFlux (partial drain).
+   */
+  function resolveSpendSource(input: {
+    entitlement: { periodQuotaRemaining: number, useBalance: boolean } | null | undefined
+    balance: number
+    minimumAmount: number
+    quotaAttempted?: boolean
+    allowPartialBalance?: boolean
+  }): FluxBillingSource {
+    if (
+      !input.quotaAttempted
+      && input.entitlement
+      && input.entitlement.periodQuotaRemaining >= input.minimumAmount
+    ) {
+      return 'quota'
+    }
+
+    if (input.entitlement && !input.entitlement.useBalance)
+      throw createPaymentRequiredError('Monthly Flux quota exhausted')
+
+    if (!input.allowPartialBalance && input.balance < input.minimumAmount)
+      throw createPaymentRequiredError('Insufficient flux')
+
+    return 'balance'
+  }
+
+  /**
    * Debit flux from a user's balance within a single DB transaction.
    *
    * The transaction locks the user_flux row, validates the balance, updates
@@ -200,13 +229,8 @@ export function createBillingService(
     /**
      * Debit flux for an LLM API request (chat, TTS).
      *
-     * Whole-request path selection (OpenCode-style):
-     * 1. Active subscription with remaining quota >= amount → quota only
-     * 2. Else if useBalance → balance debit (may partial-drain)
-     * 3. Else 402
-     *
-     * Quota consume does not write `flux_transaction`. Callers must tag
-     * `llm_request_log.source` from the returned `source`.
+     * Quota writes `subscription_quota_ledger`, not `flux_transaction`.
+     * Callers must tag `llm_request_log.source` from the returned `source`.
      */
     async consumeFluxForLLM(input: {
       userId: string
@@ -223,39 +247,42 @@ export function createBillingService(
       requested: number
       source: FluxBillingSource
     }> {
-      if (subscription) {
-        const entitlement = await subscription.getEntitlement(input.userId)
-        if (entitlement && entitlement.periodQuotaRemaining >= input.amount) {
-          const quota = await subscription.tryConsumeQuota({
+      const entitlement = subscription
+        ? await subscription.getEntitlement(input.userId)
+        : null
+
+      if (entitlement && subscription) {
+        const quota = await subscription.tryConsumeQuota({
+          userId: input.userId,
+          amount: input.amount,
+          requestId: input.requestId,
+        })
+        if (quota) {
+          const balance = await readBalance(input.userId)
+          logger.withFields({
             userId: input.userId,
             amount: input.amount,
-            requestId: input.requestId,
-          })
-          if (quota) {
-            const balance = await readBalance(input.userId)
-            logger.withFields({
-              userId: input.userId,
-              amount: input.amount,
-              charged: quota.charged,
-              source: 'quota',
-              remaining: quota.remaining,
-            }).log('Consumed period quota')
-            return {
-              userId: input.userId,
-              flux: balance,
-              charged: quota.charged,
-              requested: input.amount,
-              source: 'quota',
-            }
+            charged: quota.charged,
+            source: 'quota',
+            remaining: quota.remaining,
+          }).log('Consumed period quota')
+          return {
+            userId: input.userId,
+            flux: balance,
+            charged: quota.charged,
+            requested: input.amount,
+            source: 'quota',
           }
         }
-
-        if (entitlement && !entitlement.useBalance) {
-          throw createPaymentRequiredError('Monthly Flux quota exhausted', {
-            reason: 'quota_exhausted',
-          })
-        }
       }
+
+      resolveSpendSource({
+        entitlement,
+        balance: 0,
+        minimumAmount: input.amount,
+        quotaAttempted: true,
+        allowPartialBalance: true,
+      })
 
       const result = await debitFlux({
         userId: input.userId,
@@ -273,41 +300,24 @@ export function createBillingService(
       return { ...result, source: 'balance' as const }
     },
 
-    /**
-     * Preflight policy shared by authorizeChat / authorizeTts.
-     * Mirrors consume path selection without mutating counters.
-     */
+    /** Preflight only; does not mutate counters. */
     async authorizeFluxSpend(input: {
       userId: string
       minimumAmount: number
     }): Promise<{ source: FluxBillingSource | 'none', balance: number, quotaRemaining: number }> {
       const balance = await readBalance(input.userId)
-      if (!subscription) {
-        if (balance < input.minimumAmount)
-          throw createPaymentRequiredError('Insufficient flux')
-        return { source: 'balance', balance, quotaRemaining: 0 }
-      }
+      const entitlement = subscription
+        ? await subscription.getEntitlement(input.userId)
+        : null
 
-      const entitlement = await subscription.getEntitlement(input.userId)
-      if (entitlement && entitlement.periodQuotaRemaining >= input.minimumAmount) {
-        return {
-          source: 'quota',
-          balance,
-          quotaRemaining: entitlement.periodQuotaRemaining,
-        }
-      }
-
-      if (entitlement && !entitlement.useBalance) {
-        throw createPaymentRequiredError('Monthly Flux quota exhausted', {
-          reason: 'quota_exhausted',
-        })
-      }
-
-      if (balance < input.minimumAmount)
-        throw createPaymentRequiredError('Insufficient flux')
+      const source = resolveSpendSource({
+        entitlement,
+        balance,
+        minimumAmount: input.minimumAmount,
+      })
 
       return {
-        source: 'balance',
+        source,
         balance,
         quotaRemaining: entitlement?.periodQuotaRemaining ?? 0,
       }
