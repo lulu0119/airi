@@ -21,6 +21,7 @@ export function speechGeneration(deps: V1RouteDeps): GatewayCallback<'speech.gen
     requestLogService: deps.requestLogService,
     ttsMeter: deps.ttsMeter,
     voicePackService: deps.voicePackService,
+    billingService: deps.billingService,
   })
 
   return context => speechService.handleSpeechRequest(context.input)

@@ -868,9 +868,6 @@ pages:
       title: 订阅计划
       subscribe: 订阅
       error: 暂时无法获取订阅计划。可以之后再试试吗？
-    hardStop:
-      quotaExhausted: 本月 Flux 额度已用完
-      openFlux: 打开 Flux 设置
     checkout:
       success: 谢谢你！你的 Flux 已经更新好啦～
       canceled: 支付被取消

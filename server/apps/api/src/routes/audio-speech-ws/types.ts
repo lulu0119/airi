@@ -1,4 +1,5 @@
 import type { ConfigKVService } from '../../services/adapters/config-kv'
+import type { BillingService } from '../../services/domain/billing/billing-service'
 import type { FluxMeter } from '../../services/domain/billing/flux-meter'
 import type { FluxService } from '../../services/domain/flux'
 import type { RequestLogService } from '../../services/domain/request-log'
@@ -14,6 +15,8 @@ export interface AudioSpeechWsHandlersOptions {
   envelopeCrypto: EnvelopeCrypto
   /** Reads the user's current Flux balance for pre-flight and final billing. */
   fluxService: FluxService
+  /** Shared TTS preflight (quota users skip the balance meter). */
+  billingService: BillingService
   /** Applies pre-flight affordability checks and final streaming TTS billing. */
   ttsMeter: FluxMeter
   /** Persists request accounting after a stream finishes. */

@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import { mockDB } from '../../libs/mock-db'
@@ -75,5 +76,24 @@ describe('fluxTransactionService', () => {
       expect(new Date(records[i - 1].createdAt).getTime())
         .toBeGreaterThanOrEqual(new Date(records[i].createdAt).getTime())
     }
+  })
+
+  it('getHistory reads quota rows from subscription_quota_ledger even when llm_request_log is empty', async () => {
+    await db.insert(schema.subscriptionQuotaLedger).values({
+      userId: 'user-tx',
+      subscriptionId: 'sub-history-1',
+      requestId: 'req-quota-history',
+      amount: 12,
+    })
+
+    const { records } = await service.getHistory('user-tx', 20, 0)
+    const quotaRows = records.filter(row => row.billingSource === 'quota')
+    expect(quotaRows).toHaveLength(1)
+    expect(quotaRows[0]?.type).toBe('debit')
+    expect(quotaRows[0]?.amount).toBe(12)
+    expect(quotaRows[0]?.description).toBe('quota')
+
+    const logs = await db.select().from(schema.llmRequestLog).where(eq(schema.llmRequestLog.userId, 'user-tx'))
+    expect(logs).toHaveLength(0)
   })
 })

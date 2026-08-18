@@ -71,13 +71,6 @@ function createTestApp(
     payment,
     stripeAdapter: createMockStripeAdapter(),
     stripe: envOverrides.STRIPE_SECRET_KEY === '' ? null : stripe,
-    configKV: {
-      getOptional: vi.fn(async () => null),
-      getOrThrow: vi.fn(),
-      get: vi.fn(),
-      refresh: vi.fn(),
-      invalidateCache: vi.fn(),
-    } as any,
     env: { ...testEnv, ...envOverrides },
   })
   const app = new Hono<HonoEnv>()
@@ -361,13 +354,6 @@ describe('stripeRoutes', () => {
         webhookSecret: 'whsec_test',
         stripeAdapter,
         payment,
-        configKV: {
-          getOptional: vi.fn(async () => null),
-          getOrThrow: vi.fn(),
-          get: vi.fn(),
-          refresh: vi.fn(),
-          invalidateCache: vi.fn(),
-        } as any,
         productEventService: productEventService as any,
       })
 
@@ -391,13 +377,6 @@ describe('stripeRoutes', () => {
 
     it('ends subscription on deleted and ignores subscription.created', async () => {
       const payment = createMockPayment()
-      const configKV = {
-        getOptional: vi.fn(async () => null),
-        getOrThrow: vi.fn(),
-        get: vi.fn(),
-        refresh: vi.fn(),
-        invalidateCache: vi.fn(),
-      } as any
 
       const created = createWebhookOperation({
         stripe: {
@@ -412,7 +391,6 @@ describe('stripeRoutes', () => {
         webhookSecret: 'whsec_test',
         stripeAdapter: createMockStripeAdapter(),
         payment,
-        configKV,
       })
       await created({ signature: 'test_sig', body: '{}' })
       expect(payment.applyConfirmation).not.toHaveBeenCalled()
@@ -431,7 +409,6 @@ describe('stripeRoutes', () => {
         webhookSecret: 'whsec_test',
         stripeAdapter: createMockStripeAdapter(),
         payment,
-        configKV,
       })
       await deleted({ signature: 'test_sig', body: '{}' })
       expect(payment.endSubscription).toHaveBeenCalledWith({
@@ -439,6 +416,132 @@ describe('stripeRoutes', () => {
         providerSubscriptionId: 'sub_1',
         status: 'ended',
       })
+    })
+
+    it('keeps quota on past_due and ends on incomplete_expired', async () => {
+      const payment = createMockPayment()
+
+      const pastDue = createWebhookOperation({
+        stripe: {
+          webhooks: {
+            constructEvent: vi.fn(() => ({
+              id: 'evt_past_due',
+              type: 'customer.subscription.updated',
+              data: { object: { id: 'sub_past', status: 'past_due' } },
+            })),
+          },
+        } as any,
+        webhookSecret: 'whsec_test',
+        stripeAdapter: createMockStripeAdapter(),
+        payment,
+      })
+      await pastDue({ signature: 'test_sig', body: '{}' })
+      expect(payment.endSubscription).not.toHaveBeenCalled()
+
+      const expired = createWebhookOperation({
+        stripe: {
+          webhooks: {
+            constructEvent: vi.fn(() => ({
+              id: 'evt_incomplete_expired',
+              type: 'customer.subscription.updated',
+              data: { object: { id: 'sub_expired', status: 'incomplete_expired' } },
+            })),
+          },
+        } as any,
+        webhookSecret: 'whsec_test',
+        stripeAdapter: createMockStripeAdapter(),
+        payment,
+      })
+      await expired({ signature: 'test_sig', body: '{}' })
+      expect(payment.endSubscription).toHaveBeenCalledWith({
+        provider: 'stripe',
+        providerSubscriptionId: 'sub_expired',
+        status: 'ended',
+      })
+    })
+
+    it('rejects invalid subscription webhook payloads with 400', async () => {
+      const payment = createMockPayment()
+      const webhook = createWebhookOperation({
+        stripe: {
+          webhooks: {
+            constructEvent: vi.fn(() => ({
+              id: 'evt_bad_sub',
+              type: 'customer.subscription.deleted',
+              data: { object: { foo: 'bar' } },
+            })),
+          },
+        } as any,
+        webhookSecret: 'whsec_test',
+        stripeAdapter: createMockStripeAdapter(),
+        payment,
+      })
+
+      await expect(webhook({ signature: 'test_sig', body: '{}' })).rejects.toMatchObject({
+        statusCode: 400,
+        errorCode: 'INVALID_SUBSCRIPTION',
+      })
+      expect(payment.endSubscription).not.toHaveBeenCalled()
+    })
+
+    it('maps invoice.paid through the Stripe adapter and grants the period', async () => {
+      const payment = createMockPayment({
+        getFluxPlanByKey: vi.fn(async () => ({
+          key: 'plus',
+          name: 'Plus',
+          periodQuota: 1000,
+          periodMonths: 1,
+          recommended: true,
+          defaultCurrency: 'usd',
+          displayPrices: { usd: '$10.00' },
+          providers: { stripe: { priceId: 'price_plus' } },
+        })),
+      })
+      const applyPlanInvoice = payment.applyPlanInvoice as ReturnType<typeof vi.fn>
+      const webhook = createWebhookOperation({
+        stripe: {
+          webhooks: {
+            constructEvent: vi.fn(() => ({
+              id: 'evt_invoice',
+              type: 'invoice.paid',
+              data: {
+                object: {
+                  id: 'in_1',
+                  customer: 'cus_1',
+                  subscription: 'sub_1',
+                  amount_paid: 1000,
+                  currency: 'usd',
+                  billing_reason: 'subscription_create',
+                  lines: { data: [{ price: { id: 'price_plus' } }] },
+                },
+              },
+            })),
+          },
+          subscriptions: {
+            retrieve: vi.fn(async () => ({
+              id: 'sub_1',
+              metadata: { planKey: 'plus', payment_order_id: 'po_plan', userId: 'user-1' },
+              items: { data: [{ price: { id: 'price_plus' } }] },
+            })),
+          },
+        } as any,
+        webhookSecret: 'whsec_test',
+        stripeAdapter: createMockStripeAdapter(),
+        payment,
+      })
+
+      await webhook({ signature: 'test_sig', body: '{}' })
+
+      expect(applyPlanInvoice).toHaveBeenCalledWith(expect.objectContaining({
+        provider: 'stripe',
+        providerInvoiceId: 'in_1',
+        providerSubscriptionId: 'sub_1',
+        providerCustomerId: 'cus_1',
+        planKey: 'plus',
+        periodQuota: 1000,
+        amount: 1000,
+        currency: 'usd',
+      }))
     })
   })
 })

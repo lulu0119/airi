@@ -1,12 +1,13 @@
 import type { Database } from '../../../libs/db'
 import type { Clock } from './monthly-bounds'
 
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 
 import { createForbiddenError, createInternalError, createNotFoundError } from '../../../utils/error'
 import { getMonthlyBounds, systemClock } from './monthly-bounds'
 
 import * as schema from '../../../schemas/subscription'
+import * as quotaLedger from '../../../schemas/subscription-quota-ledger'
 
 export const SUBSCRIPTION_STATUSES = ['active', 'ended', 'canceled'] as const
 
@@ -32,6 +33,14 @@ export interface SubscriptionServiceDeps {
 type SubscriptionRow = typeof schema.subscription.$inferSelect
 
 type DbHandle = Pick<Database, 'insert' | 'update' | 'select' | 'query'>
+
+// Throw rolls back the ledger insert; returning null would commit an orphan row.
+class QuotaConsumeRejected extends Error {
+  constructor() {
+    super('quota consume rejected')
+    this.name = 'QuotaConsumeRejected'
+  }
+}
 
 /**
  * Subscription + period-quota module.
@@ -110,6 +119,10 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
     /**
      * Creates or renews an active subscription and resets period quota.
      * Called from Payment when a plan invoice is paid.
+     *
+     * Same `providerSubscriptionId` renews the existing row.
+     * A second active subscription for the user is rejected by
+     * `subscription_user_active_uidx` (`ON CONFLICT DO NOTHING`).
      */
     async grantPeriod(input: {
       userId: string
@@ -119,7 +132,7 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
       periodQuotaAmount: number
       providerData?: Record<string, unknown>
       tx?: DbHandle
-    }): Promise<{ subscriptionId: string }> {
+    }): Promise<{ granted: true, subscriptionId: string } | { granted: false }> {
       const db = input.tx ?? deps.db
       const now = clock()
 
@@ -142,20 +155,7 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
             deletedAt: null,
           })
           .where(eq(schema.subscription.id, existing.id))
-        return { subscriptionId: existing.id }
-      }
-
-      // End any other active subscription for this user before inserting.
-      const prior = await findActiveForUser(db, input.userId)
-      if (prior) {
-        await db.update(schema.subscription)
-          .set({
-            status: 'ended',
-            periodQuotaUsed: prior.periodQuotaAmount,
-            periodQuotaUpdatedAt: now,
-            updatedAt: now,
-          })
-          .where(eq(schema.subscription.id, prior.id))
+        return { granted: true, subscriptionId: existing.id }
       }
 
       const [inserted] = await db.insert(schema.subscription).values({
@@ -169,12 +169,15 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
         periodQuotaUpdatedAt: now,
         useBalance: false,
         providerData: input.providerData,
+      }).onConflictDoNothing({
+        target: schema.subscription.userId,
+        where: sql`${schema.subscription.status} = 'active' AND ${schema.subscription.deletedAt} IS NULL`,
       }).returning({ id: schema.subscription.id })
 
       if (!inserted)
-        throw createInternalError('Failed to create subscription')
+        return { granted: false }
 
-      return { subscriptionId: inserted.id }
+      return { granted: true, subscriptionId: inserted.id }
     },
 
     /**
@@ -231,59 +234,108 @@ export function createSubscriptionService(deps: SubscriptionServiceDeps) {
 
     /**
      * Tries to charge `amount` against period quota.
-     * Returns null when quota cannot cover the whole request.
+     *
+     * Opens a short transaction, inserts a ledger row first, then runs one
+     * atomic CASE UPDATE. Callers do not pass a transaction.
+     *
+     * Returns null when there is no active subscription or quota cannot cover
+     * the whole request. A matching `requestId` replays the first charge and
+     * does not bump the counter again.
      */
     async tryConsumeQuota(input: {
       userId: string
       amount: number
       requestId?: string
-      tx?: Pick<Database, 'update' | 'select' | 'query'>
     }): Promise<{ charged: number, remaining: number, subscriptionId: string } | null> {
-      const db = input.tx ?? deps.db
       const now = clock()
 
-      const [row] = await db
-        .select()
-        .from(schema.subscription)
-        .where(and(
-          eq(schema.subscription.userId, input.userId),
-          eq(schema.subscription.status, 'active'),
-          isNull(schema.subscription.deletedAt),
-        ))
-        .for('update')
-        .limit(1)
+      try {
+        return await deps.db.transaction(async (tx) => {
+          const row = await findActiveForUser(tx, input.userId)
+          if (!row)
+            return null
 
-      if (!row)
-        return null
+          const [inserted] = await tx
+            .insert(quotaLedger.subscriptionQuotaLedger)
+            .values({
+              userId: input.userId,
+              subscriptionId: row.id,
+              requestId: input.requestId,
+              amount: input.amount,
+            })
+            .onConflictDoNothing()
+            .returning({
+              amount: quotaLedger.subscriptionQuotaLedger.amount,
+            })
 
-      if (input.requestId && row.lastConsumeRequestId === input.requestId) {
-        const used = effectiveUsed(row, now)
-        return {
-          charged: input.amount,
-          remaining: Math.max(0, row.periodQuotaAmount - used),
-          subscriptionId: row.id,
-        }
-      }
+          if (!inserted) {
+            // Replay the first charge; ignore a different retry amount.
+            if (input.requestId == null)
+              throw createInternalError('Quota ledger insert conflicted without requestId')
 
-      const used = effectiveUsed(row, now)
-      const remaining = row.periodQuotaAmount - used
-      if (remaining < input.amount)
-        return null
+            const [existing] = await tx
+              .select({
+                amount: quotaLedger.subscriptionQuotaLedger.amount,
+                subscriptionId: quotaLedger.subscriptionQuotaLedger.subscriptionId,
+              })
+              .from(quotaLedger.subscriptionQuotaLedger)
+              .where(and(
+                eq(quotaLedger.subscriptionQuotaLedger.userId, input.userId),
+                eq(quotaLedger.subscriptionQuotaLedger.requestId, input.requestId),
+              ))
+              .limit(1)
 
-      const nextUsed = used + input.amount
-      await db.update(schema.subscription)
-        .set({
-          periodQuotaUsed: nextUsed,
-          periodQuotaUpdatedAt: now,
-          lastConsumeRequestId: input.requestId ?? row.lastConsumeRequestId,
-          updatedAt: now,
+            if (!existing)
+              throw createInternalError('Quota ledger conflicted but the original row is missing')
+
+            const current = await findActiveForUser(tx, input.userId)
+            const remaining = current
+              ? Math.max(0, current.periodQuotaAmount - effectiveUsed(current, now))
+              : 0
+
+            return {
+              charged: existing.amount,
+              remaining,
+              subscriptionId: existing.subscriptionId,
+            }
+          }
+
+          const { start: windowStart } = getMonthlyBounds(now, row.createdAt)
+          // SET and WHERE must share this CASE: an OR on "window expired" alone
+          // would let amount > periodQuotaAmount through after reset.
+          const [updated] = await tx
+            .update(schema.subscription)
+            .set({
+              periodQuotaUsed: sql`(CASE WHEN ${schema.subscription.periodQuotaUpdatedAt} < ${windowStart} THEN 0 ELSE ${schema.subscription.periodQuotaUsed} END) + ${input.amount}`,
+              periodQuotaUpdatedAt: now,
+              updatedAt: now,
+            })
+            .where(and(
+              eq(schema.subscription.userId, input.userId),
+              eq(schema.subscription.status, 'active'),
+              isNull(schema.subscription.deletedAt),
+              sql`(CASE WHEN ${schema.subscription.periodQuotaUpdatedAt} < ${windowStart} THEN 0 ELSE ${schema.subscription.periodQuotaUsed} END) + ${input.amount} <= ${schema.subscription.periodQuotaAmount}`,
+            ))
+            .returning({
+              id: schema.subscription.id,
+              periodQuotaUsed: schema.subscription.periodQuotaUsed,
+              periodQuotaAmount: schema.subscription.periodQuotaAmount,
+            })
+
+          if (!updated)
+            throw new QuotaConsumeRejected()
+
+          return {
+            charged: input.amount,
+            remaining: Math.max(0, updated.periodQuotaAmount - updated.periodQuotaUsed),
+            subscriptionId: updated.id,
+          }
         })
-        .where(eq(schema.subscription.id, row.id))
-
-      return {
-        charged: input.amount,
-        remaining: row.periodQuotaAmount - nextUsed,
-        subscriptionId: row.id,
+      }
+      catch (error) {
+        if (error instanceof QuotaConsumeRejected)
+          return null
+        throw error
       }
     },
 
