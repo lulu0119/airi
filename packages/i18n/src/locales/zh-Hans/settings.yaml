@@ -859,7 +859,7 @@ pages:
     currency: 币种
     description: 充值 Flux
     packagesError: 暂时无法获取可用的 Flux 包。可以之后再试试吗？
-    quotaDescription: 本月额度剩余
+    quotaDescription: 本月额度
     balanceRow: 余额
     resetAt: 重置时间 {date}
     useBalance: 额度用尽后使用余额

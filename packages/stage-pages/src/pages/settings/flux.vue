@@ -6,7 +6,7 @@ import { isFluxPurchaseDisabled, isStageTamagotchi } from '@proj-airi/stage-shar
 import { client } from '@proj-airi/stage-ui/composables/api'
 import { useAnalytics } from '@proj-airi/stage-ui/composables/use-analytics'
 import { useAuthStore } from '@proj-airi/stage-ui/stores/auth'
-import { Button, FieldCheckbox, SelectTab } from '@proj-airi/ui'
+import { Button, FieldCheckbox, GhostButton, SelectTab } from '@proj-airi/ui'
 import { useEventListener } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, ref } from 'vue'
@@ -72,23 +72,19 @@ const currencyOptions = computed(() => {
     .map(c => ({ label: c.toUpperCase(), value: c }))
 })
 
-const displayPrimaryAmount = computed(() => {
-  if (subscription.value)
-    return subscription.value.periodQuotaRemaining
-  return credits.value
+function remainingPercentage(remaining: number, total: number): number {
+  if (total <= 0)
+    return remaining > 0 ? 100 : 0
+  return Math.min(100, Math.round((remaining / total) * 100))
+}
+
+const quotaPercentage = computed(() => {
+  if (!subscription.value)
+    return 0
+  return remainingPercentage(subscription.value.periodQuotaRemaining, subscription.value.periodQuotaTotal)
 })
 
-const fluxPercentage = computed(() => {
-  if (subscription.value) {
-    const total = subscription.value.periodQuotaTotal
-    if (total <= 0)
-      return subscription.value.periodQuotaRemaining > 0 ? 100 : 0
-    return Math.min(100, Math.round((subscription.value.periodQuotaRemaining / total) * 100))
-  }
-  if (capacity.value <= 0)
-    return credits.value > 0 ? 100 : 0
-  return Math.min(100, Math.round((credits.value / capacity.value) * 100))
-})
+const balancePercentage = computed(() => remainingPercentage(credits.value, capacity.value))
 
 function formatNumber(num: number): string {
   return new Intl.NumberFormat().format(num)
@@ -550,15 +546,140 @@ const checkoutBusy = computed(() => loadingPackKey.value !== null || loadingPlan
       {{ message.text }}
     </div>
 
-    <!-- Battery Card -->
+    <!-- Period + balance -->
     <div
+      v-if="isSubscriber && subscription"
+      :class="[
+        'flex flex-col gap-6',
+        'rounded-2xl p-6 sm:p-8',
+        'bg-neutral-100 dark:bg-neutral-800',
+      ]"
+    >
+      <div :class="['flex flex-col gap-3']">
+        <div :class="['flex items-center justify-between gap-3']">
+          <div :class="['flex min-w-0 items-center gap-3']">
+            <div
+              :class="[
+                'i-solar:calendar-mark-bold-duotone',
+                'size-10 shrink-0',
+                'text-primary-500',
+              ]"
+            />
+            <p :class="['truncate text-sm text-neutral-500 dark:text-neutral-400']">
+              {{ t('settings.pages.flux.quotaDescription') }}
+            </p>
+          </div>
+          <p
+            :class="[
+              'shrink-0 text-2xl font-bold tracking-tight tabular-nums',
+              'text-neutral-800 dark:text-neutral-100',
+            ]"
+          >
+            {{ formatNumber(subscription.periodQuotaRemaining) }}
+            <span :class="['text-sm font-normal text-neutral-400']">
+              / {{ formatNumber(subscription.periodQuotaTotal) }}
+            </span>
+          </p>
+        </div>
+        <div
+          :class="[
+            'h-2 overflow-hidden rounded-full',
+            'bg-neutral-200 dark:bg-neutral-700',
+          ]"
+          role="progressbar"
+          :aria-valuenow="subscription.periodQuotaRemaining"
+          :aria-valuemin="0"
+          :aria-valuemax="subscription.periodQuotaTotal"
+          :aria-label="t('settings.pages.flux.quotaDescription')"
+        >
+          <div
+            :class="[
+              'flux-meter-fill',
+              'h-full rounded-full',
+              'bg-primary-500',
+            ]"
+            :style="{ '--flux-meter-width': `${quotaPercentage}%` }"
+          />
+        </div>
+        <div :class="['flex items-center justify-between gap-3']">
+          <p :class="['text-xs text-neutral-400']">
+            {{ t('settings.pages.flux.resetAt', { date: formatResetDate(subscription.resetAt) }) }}
+          </p>
+          <GhostButton
+            v-if="!fluxPurchaseDisabled"
+            :label="t('settings.pages.flux.manageSubscription')"
+            :loading="managingPortal"
+            :disabled="managingPortal || checkoutBusy"
+            size="sm"
+            @click="handleManagePortal"
+          />
+        </div>
+      </div>
+
+      <div :class="['h-px bg-neutral-200 dark:bg-neutral-700']" />
+
+      <div :class="['flex flex-col gap-3']">
+        <div :class="['flex items-center justify-between gap-3']">
+          <div :class="['flex min-w-0 items-center gap-3']">
+            <div
+              :class="[
+                'i-solar:battery-charge-bold-duotone',
+                'size-10 shrink-0',
+                'text-primary-500',
+              ]"
+            />
+            <p :class="['truncate text-sm text-neutral-500 dark:text-neutral-400']">
+              {{ t('settings.pages.flux.balanceRow') }}
+            </p>
+          </div>
+          <p
+            :class="[
+              'shrink-0 text-2xl font-bold tracking-tight tabular-nums',
+              'text-neutral-800 dark:text-neutral-100',
+            ]"
+          >
+            {{ formatNumber(credits) }}
+          </p>
+        </div>
+        <div
+          :class="[
+            'h-2 overflow-hidden rounded-full',
+            'bg-neutral-200 dark:bg-neutral-700',
+          ]"
+          role="progressbar"
+          :aria-valuenow="credits"
+          :aria-valuemin="0"
+          :aria-valuemax="capacity > 0 ? capacity : credits"
+          :aria-label="t('settings.pages.flux.balanceRow')"
+        >
+          <div
+            :class="[
+              'flux-meter-fill',
+              'h-full rounded-full',
+              'bg-primary-500/40',
+            ]"
+            :style="{ '--flux-meter-width': `${balancePercentage}%` }"
+          />
+        </div>
+        <FieldCheckbox
+          v-if="!fluxPurchaseDisabled"
+          :model-value="subscription.useBalance"
+          :label="t('settings.pages.flux.useBalance')"
+          :disabled="useBalanceUpdating"
+          @update:model-value="setUseBalance"
+        />
+      </div>
+    </div>
+
+    <!-- Battery card -->
+    <div
+      v-else
       :class="[
         'relative overflow-hidden rounded-2xl',
         'bg-neutral-100 dark:bg-neutral-800',
         'p-6 sm:p-8',
       ]"
     >
-      <!-- Background Progress -->
       <div
         :class="[
           'flux-progress-bar',
@@ -567,7 +688,6 @@ const checkoutBusy = computed(() => loadingPackKey.value !== null || loadingPlan
         ]"
       />
 
-      <!-- Content -->
       <div
         :class="[
           'relative z-1',
@@ -590,51 +710,12 @@ const checkoutBusy = computed(() => loadingPackKey.value !== null || loadingPlan
               'font-bold tracking-tight',
             ]"
           >
-            {{ formatNumber(displayPrimaryAmount) }}
+            {{ formatNumber(credits) }}
           </h2>
-          <p
-            v-if="isSubscriber && subscription"
-            :class="['text-sm text-neutral-500']"
-          >
-            {{ t('settings.pages.flux.quotaDescription') }}
-            · {{ formatNumber(subscription.periodQuotaRemaining) }} / {{ formatNumber(subscription.periodQuotaTotal) }}
-          </p>
-          <p
-            v-else
-            :class="['text-sm text-neutral-500']"
-          >
+          <p :class="['text-sm text-neutral-500']">
             {{ t(fluxPurchaseDisabled ? 'settings.pages.account.fluxBalance' : 'settings.pages.flux.description') }}
           </p>
-          <template v-if="isSubscriber && subscription">
-            <p :class="['text-sm text-neutral-500']">
-              {{ t('settings.pages.flux.balanceRow') }}: {{ formatNumber(credits) }}
-            </p>
-            <p :class="['text-xs text-neutral-400']">
-              {{ t('settings.pages.flux.resetAt', { date: formatResetDate(subscription.resetAt) }) }}
-            </p>
-          </template>
         </div>
-      </div>
-    </div>
-
-    <!-- Subscriber controls -->
-    <div
-      v-if="isSubscriber && subscription && !fluxPurchaseDisabled"
-      :class="['flex flex-col gap-3']"
-    >
-      <FieldCheckbox
-        :model-value="subscription.useBalance"
-        :label="t('settings.pages.flux.useBalance')"
-        :disabled="useBalanceUpdating"
-        @update:model-value="setUseBalance"
-      />
-      <div :class="['flex justify-start']">
-        <Button
-          :label="t('settings.pages.flux.manageSubscription')"
-          :loading="managingPortal"
-          :disabled="managingPortal || checkoutBusy"
-          @click="handleManagePortal"
-        />
       </div>
     </div>
 
@@ -1289,8 +1370,19 @@ const checkoutBusy = computed(() => loadingPackKey.value !== null || loadingPlan
     opacity: 0.5;
   }
   100% {
-    width: v-bind('`${fluxPercentage}%`');
+    width: v-bind('`${balancePercentage}%`');
     opacity: 1;
+  }
+}
+
+.flux-meter-fill {
+  width: 0;
+  animation: flux-meter-fill-grow 1s cubic-bezier(0.4, 0, 0.2, 1) 0.5s forwards;
+}
+
+@keyframes flux-meter-fill-grow {
+  to {
+    width: var(--flux-meter-width);
   }
 }
 </style>
