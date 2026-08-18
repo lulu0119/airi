@@ -896,10 +896,10 @@ pages:
     currency: Currency
     description: Current Flux
     packagesError: Failed to load packages. Please try again later.
-    quotaDescription: Period quota remaining
+    quotaDescription: This period
     balanceRow: Balance
     resetAt: Resets {date}
-    useBalance: Use your available balance after reaching the usage limits
+    useBalance: Use balance after this period runs out
     manageSubscription: Manage subscription
     plans:
       title: Plans
