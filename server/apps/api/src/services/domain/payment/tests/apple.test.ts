@@ -53,6 +53,7 @@ describe('createApplePaymentProvider', () => {
 
   it('rejects create because Apple is evidence-first', async () => {
     await expect(provider.create({
+      kind: 'pack',
       paymentOrderId: 'po_1',
       userId: 'user-1',
       pack: {
