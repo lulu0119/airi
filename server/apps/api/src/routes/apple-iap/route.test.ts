@@ -7,6 +7,7 @@ import { Hono } from 'hono'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createApplePaymentProvider } from '../../services/domain/payment/adapters/apple'
+import { ApiError } from '../../utils/error'
 import { createAppleIapRoutes } from './index'
 
 function createMockPayment(overrides?: Partial<PaymentService>): PaymentService {
@@ -49,6 +50,12 @@ function createTestApp(deps: {
 }) {
   const routes = createAppleIapRoutes(deps)
   const app = new Hono<HonoEnv>()
+  app.onError((err, c) => {
+    if (err instanceof ApiError) {
+      return c.json({ error: err.errorCode, message: err.message }, err.statusCode as 400)
+    }
+    throw err
+  })
   app.route('/', routes)
   return app
 }
