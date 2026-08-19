@@ -10,7 +10,7 @@ import type { ChatService } from './services/domain/chats'
 import type { FluxService } from './services/domain/flux'
 import type { FluxTransactionService } from './services/domain/flux-transaction'
 import type { LlmRouterService } from './services/domain/llm-router'
-import type { PaymentProvider, PaymentService } from './services/domain/payment'
+import type { PaymentService } from './services/domain/payment'
 import type { ProductEventService } from './services/domain/product-events'
 import type { ProviderCatalogService } from './services/domain/provider-catalog'
 import type { ProviderService } from './services/domain/providers'
@@ -65,7 +65,7 @@ import { createChatService } from './services/domain/chats'
 import { createFluxService } from './services/domain/flux'
 import { createFluxTransactionService } from './services/domain/flux-transaction'
 import { createConcurrencyLedger, createConfigSyncSubscriber, createLlmRouterService } from './services/domain/llm-router'
-import { createPaymentService, createStripePaymentProvider } from './services/domain/payment'
+import { createPaymentService } from './services/domain/payment'
 import { createProductEventService } from './services/domain/product-events'
 import { createProviderCatalogService } from './services/domain/provider-catalog'
 import { createProviderService } from './services/domain/providers'
@@ -85,7 +85,6 @@ interface AppDeps {
   fluxService: FluxService
   fluxTransactionService: FluxTransactionService
   paymentService: PaymentService
-  stripeAdapter: PaymentProvider
   stripe: Stripe | null
   billingService: BillingService
   ttsMeter: FluxMeter
@@ -362,8 +361,9 @@ export async function buildApp(deps: AppDeps) {
      */
     .route('/api/v1/stripe', createStripeRoutes({
       payment: deps.paymentService,
-      stripeAdapter: deps.stripeAdapter,
+      db: deps.db,
       stripe: deps.stripe,
+      configKV: deps.configKV,
       env: deps.env,
       metrics: deps.otel?.revenue,
       rateLimitMetrics: deps.otel?.rateLimit,
@@ -542,15 +542,9 @@ export async function createApp() {
     dependsOn: { env: parsedEnv },
     build: ({ dependsOn }) => {
       // Stripe SDK is optional — when STRIPE_SECRET_KEY is unset (dev/CI)
-      // billing routes degrade gracefully and the user-deletion pipeline
-      // skips the API cancel call.
+      // billing routes degrade gracefully.
       return dependsOn.env.STRIPE_SECRET_KEY ? new Stripe(dependsOn.env.STRIPE_SECRET_KEY) : null
     },
-  })
-
-  const stripeAdapter = injeca.provide('services:stripeAdapter', {
-    dependsOn: { stripe, configKV },
-    build: ({ dependsOn }) => createStripePaymentProvider(dependsOn.stripe, dependsOn.configKV),
   })
 
   const fluxTransactionService = injeca.provide('services:fluxTransaction', {
@@ -584,12 +578,10 @@ export async function createApp() {
   })
 
   const paymentService = injeca.provide('services:payment', {
-    dependsOn: { db, billingService, configKV, stripeAdapter },
+    dependsOn: { db, billingService },
     build: ({ dependsOn }) => createPaymentService({
       db: dependsOn.db,
       billing: dependsOn.billingService,
-      configKV: dependsOn.configKV,
-      providers: { stripe: dependsOn.stripeAdapter },
     }),
   })
 
@@ -604,10 +596,9 @@ export async function createApp() {
     dependsOn: { paymentService, fluxService, providerService, characterService, chatService },
     build: ({ dependsOn }) => {
       const service = createUserDeletionService()
-      // priority: 10 = external side-effects (Stripe API cancel — unrollable),
-      //           20 = financial / cache state (Flux balance + Redis),
+      // priority: 20 = financial / cache state (Flux balance + Redis),
       //           30 = pure DB soft-delete (no external touch).
-      service.register({ name: 'payment', priority: 10, softDelete: ({ userId }) => dependsOn.paymentService.deleteAllForUser(userId) })
+      service.register({ name: 'payment', priority: 30, softDelete: ({ userId }) => dependsOn.paymentService.deleteAllForUser(userId) })
       service.register({ name: 'flux', priority: 20, softDelete: ({ userId }) => dependsOn.fluxService.deleteAllForUser(userId) })
       service.register({ name: 'providers', priority: 30, softDelete: ({ userId }) => dependsOn.providerService.deleteAllForUser(userId) })
       service.register({ name: 'characters', priority: 30, softDelete: ({ userId }) => dependsOn.characterService.deleteAllForUser(userId) })
@@ -678,7 +669,6 @@ export async function createApp() {
     voicePackService,
     productEventService,
     paymentService,
-    stripeAdapter,
     stripe,
     billingService,
     ttsMeter,
@@ -705,7 +695,6 @@ export async function createApp() {
     fluxService: resolved.fluxService,
     fluxTransactionService: resolved.fluxTransactionService,
     paymentService: resolved.paymentService,
-    stripeAdapter: resolved.stripeAdapter,
     stripe: resolved.stripe,
     voicePackService: resolved.voicePackService,
     billingService: resolved.billingService,
