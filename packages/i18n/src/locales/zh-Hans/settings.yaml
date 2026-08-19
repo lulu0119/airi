@@ -866,7 +866,7 @@ pages:
     manageSubscription: 管理订阅
     plans:
       title: 订阅计划
-      subscribe: 订阅
+      perMonth: / 月
       error: 暂时无法获取订阅计划。可以之后再试试吗？
     checkout:
       success: 谢谢你！你的 Flux 已经更新好啦～
