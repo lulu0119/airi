@@ -156,8 +156,7 @@ function createMockLlmRouter(impl?: Partial<LlmRouterService>): LlmRouterService
 function createMockProductEventService(): ProductEventService {
   return {
     track: vi.fn(async () => undefined),
-    trackGeneration: vi.fn(async () => undefined),
-    countDistinctUsersByFeature: vi.fn(async () => []),
+    trackGeneration: vi.fn(() => undefined),
   }
 }
 

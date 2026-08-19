@@ -33,17 +33,6 @@ export interface FluxPack {
   providers: CatalogProviderIds
 }
 
-export interface FluxPackListItem {
-  packKey: string
-  stripePriceId?: string
-  appleProductId?: string
-  steamItemId?: number
-  label: string
-  defaultCurrency: string
-  currencies: Record<string, string>
-  recommended: boolean
-}
-
 export interface FluxPlan {
   key: string
   name: string

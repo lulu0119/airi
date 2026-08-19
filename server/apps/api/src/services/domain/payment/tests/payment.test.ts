@@ -361,6 +361,7 @@ describe('payment CORE', () => {
 
     const ledger = await db.select().from(schema.fluxTransaction).where(eq(schema.fluxTransaction.userId, 'user-pay-1'))
     expect(ledger).toHaveLength(1)
+  })
 
   it('startPlan redirects when the user has no active subscription', async () => {
     const started = await startPlusPlan()

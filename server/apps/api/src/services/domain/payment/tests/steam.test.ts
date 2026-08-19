@@ -41,6 +41,7 @@ describe('steam payment adapter', () => {
   it('create is unsupported for GetReport-first grants', async () => {
     const steam = createSteamPaymentProvider()
     await expect(steam.create({
+      kind: 'pack',
       paymentOrderId: 'po_1',
       userId: 'user-1',
       pack: {

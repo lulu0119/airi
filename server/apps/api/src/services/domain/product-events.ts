@@ -26,6 +26,8 @@ export type ProductAction
   = | 'user_signed_up'
     | 'checkout_started'
     | 'payment_completed'
+    | 'subscription_started'
+    | 'subscription_renewed'
 
 /** Product funnel fact forwarded to PostHog from the server. */
 export interface ProductEventInput {
@@ -96,6 +98,8 @@ const POSTHOG_FORWARDED_ACTIONS: Partial<Record<ProductAction, string>> = {
   user_signed_up: 'signup_completed',
   checkout_started: 'checkout_created',
   payment_completed: 'payment_completed',
+  subscription_started: 'subscription_started',
+  subscription_renewed: 'subscription_renewed',
 }
 
 function stringMetadata(input: ProductEventInput, key: string): string | undefined {
