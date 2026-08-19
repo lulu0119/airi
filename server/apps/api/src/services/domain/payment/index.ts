@@ -203,8 +203,20 @@ export function createPaymentService(deps: PaymentServiceDeps) {
   async function claimEvidenceOrder(receipt: EvidenceReceipt): Promise<SettleResult> {
     const pack = await resolveEvidencePack(receipt)
 
-    const result = await deps.db.transaction(async (tx) => {
-      try {
+    const [existing] = await deps.db
+      .select({ id: schema.paymentOrder.id })
+      .from(schema.paymentOrder)
+      .where(and(
+        eq(schema.paymentOrder.provider, receipt.provider),
+        eq(schema.paymentOrder.providerOrderId, receipt.providerOrderId),
+      ))
+      .limit(1)
+
+    if (existing)
+      return { applied: false }
+
+    try {
+      const result = await deps.db.transaction(async (tx) => {
         const [inserted] = await tx.insert(schema.paymentOrder).values({
           userId: receipt.userId,
           provider: receipt.provider,
@@ -244,15 +256,15 @@ export function createPaymentService(deps: PaymentServiceDeps) {
           fluxAmount: pack.fluxAmount,
           balanceAfter: credit.balanceAfter,
         }
-      }
-      catch (error) {
-        if (!isUniqueViolation(error))
-          throw error
-        return { applied: false as const }
-      }
-    })
+      })
 
-    return syncIfApplied(result)
+      return syncIfApplied(result)
+    }
+    catch (error) {
+      if (!isUniqueViolation(error))
+        throw error
+      return { applied: false }
+    }
   }
 
   async function syncIfApplied(result: SettleResult): Promise<SettleResult> {
@@ -273,8 +285,8 @@ export function createPaymentService(deps: PaymentServiceDeps) {
         case 'evidence':
           return claimEvidenceOrder(receipt)
         default: {
-          const exhaustive: never = receipt.kind
-          throw createInternalError(`Unhandled payment receipt kind: ${String(exhaustive)}`)
+          const exhaustive: never = receipt
+          throw createInternalError(`Unhandled payment receipt: ${String(exhaustive)}`)
         }
       }
     },
@@ -308,16 +320,11 @@ export function createPaymentService(deps: PaymentServiceDeps) {
 export type PaymentService = ReturnType<typeof createPaymentService>
 
 function isUniqueViolation(error: unknown): boolean {
-  if (hasPostgresCode(error, '23505'))
-    return true
-  if (typeof error === 'object' && error !== null && 'cause' in error)
-    return hasPostgresCode(error.cause, '23505')
+  let current: unknown = error
+  for (let i = 0; i < 5 && current && typeof current === 'object'; i++) {
+    if ('code' in current && current.code === '23505')
+      return true
+    current = 'cause' in current ? current.cause : undefined
+  }
   return false
-}
-
-function hasPostgresCode(error: unknown, code: string): boolean {
-  return typeof error === 'object'
-    && error !== null
-    && 'code' in error
-    && error.code === code
 }

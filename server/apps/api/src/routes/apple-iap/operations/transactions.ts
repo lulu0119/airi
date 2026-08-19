@@ -8,8 +8,8 @@ import { safeParse } from 'valibot'
 
 import { APPLE_IAP_NAMESPACE_UUID } from '../../../utils/apple-iap'
 import {
+  ApiError,
   createBadRequestError,
-  createForbiddenError,
   createServiceUnavailableError,
 } from '../../../utils/error'
 import { evidenceReceiptFromAppleTransaction } from '../claim'
@@ -60,7 +60,7 @@ export function createTransactionOperation(deps: TransactionOperationDeps) {
         transactionId: payload.transactionId,
         actual: payload.appAccountToken,
       }).warn('appAccountToken mismatch')
-      throw createForbiddenError('appAccountToken does not match authenticated user', 'ACCOUNT_TOKEN_MISMATCH')
+      throw new ApiError(403, 'ACCOUNT_TOKEN_MISMATCH', 'appAccountToken does not match authenticated user')
     }
 
     if (payload.type === Type.AUTO_RENEWABLE_SUBSCRIPTION) {

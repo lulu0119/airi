@@ -53,7 +53,7 @@ function createTestApp(deps: {
   })
 
   app.use('*', async (c, next) => {
-    const user = (c.env as { user?: typeof testUser })?.user
+    const user = (c.env as any)?.user
     if (user)
       c.set('user', user)
     await next()
@@ -128,7 +128,7 @@ describe('apple-iap routes', () => {
 
   it('replays an already granted transaction without a second credit payload', async () => {
     payment = createMockPayment({
-      settle: vi.fn(async () => ({ applied: false })),
+      settle: vi.fn(async () => ({ applied: false as const })),
     })
     const app = createTestApp({ payment, verifier })
     const res = await app.fetch(
