@@ -775,20 +775,20 @@ const checkoutBusy = computed(() => loadingPackKey.value !== null || loadingPlan
                 >
                   {{ plan.currencies[selectedCurrency] ?? plan.currencies[plan.defaultCurrency] }}
                 </span>
+                <span
+                  :class="[
+                    'text-sm text-neutral-400',
+                  ]"
+                >
+                  {{ t('settings.pages.flux.plans.perMonth') }}
+                </span>
               </div>
               <div
                 :class="[
                   'text-xs text-neutral-400',
                 ]"
               >
-                {{ formatNumber(plan.periodQuota) }}
-              </div>
-              <div
-                :class="[
-                  'mt-1 text-xs font-medium text-primary-600 dark:text-primary-400',
-                ]"
-              >
-                {{ t('settings.pages.flux.plans.subscribe') }}
+                {{ formatNumber(plan.periodQuota) }} Flux
               </div>
             </div>
 
@@ -802,7 +802,7 @@ const checkoutBusy = computed(() => loadingPackKey.value !== null || loadingPlan
               <div
                 v-for="i in Math.min(index + 1, 3)"
                 :key="i"
-                :class="['i-solar:battery-charge-bold-duotone size-8 sm:size-10']"
+                :class="['i-solar:calendar-mark-bold-duotone size-8 sm:size-10']"
               />
             </div>
           </button>
