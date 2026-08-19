@@ -48,7 +48,7 @@ export function createStripeRoutes(deps: StripeRouteDeps) {
 
   return new Hono<HonoEnv>()
     .get('/packages', async (c) => {
-      return c.json(await deps.payment.listPacks('stripe'))
+      return c.json(await deps.payment.listPacks())
     })
     .get('/plans', async (c) => {
       return c.json(await deps.payment.listPlans())

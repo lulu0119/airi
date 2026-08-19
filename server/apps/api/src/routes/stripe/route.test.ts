@@ -37,7 +37,6 @@ function createMockPayment(overrides: Partial<PaymentService> = {}): PaymentServ
 function createMockStripeAdapter(): PaymentProvider {
   return {
     create: vi.fn(),
-    listPackages: vi.fn(async () => []),
     confirmed: vi.fn((native: any) => ({
       provider: 'stripe' as const,
       paymentOrderId: native.metadata?.payment_order_id,
@@ -492,8 +491,6 @@ describe('stripeRoutes', () => {
           periodQuota: 1000,
           periodMonths: 1,
           recommended: true,
-          defaultCurrency: 'usd',
-          displayPrices: { usd: '$10.00' },
           providers: { stripe: { priceId: 'price_plus' } },
         })),
       })

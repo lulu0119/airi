@@ -39,9 +39,26 @@ export interface FluxPlan {
   periodQuota: number
   periodMonths: number
   recommended: boolean
-  defaultCurrency: string
-  displayPrices: Record<string, string>
   providers: CatalogProviderIds
+}
+
+/**
+ * Formatted money for one Stripe Price id.
+ * Display strings never feed checkout; checkout still uses the catalog priceId.
+ */
+export interface HydratedPrice {
+  priceId: string
+  defaultCurrency: string
+  currencies: Record<string, string>
+}
+
+/**
+ * Read-only price hydration. Stripe retrieve is true-external;
+ * production and test adapters sit at this seam.
+ */
+export interface DisplayPrice {
+  /** Omit ids that cannot be retrieved. Do not throw for a missing price. */
+  hydrate: (priceIds: string[]) => Promise<ReadonlyMap<string, HydratedPrice>>
 }
 
 export interface PackStartContext {
@@ -159,10 +176,10 @@ export interface ProviderCreateResult {
  *
  * Channel routes call {@link PaymentProvider.confirmed} after they verify
  * the native payload. CORE calls {@link PaymentProvider.create}.
+ * Display prices use {@link DisplayPrice}, not this seam.
  */
 export interface PaymentProvider {
   create: (input: ProviderCreateInput) => Promise<ProviderCreateResult>
-  listPackages: (packs: FluxPack[]) => Promise<FluxPackListItem[]>
   confirmed: (native: unknown) => ConfirmationFacts
   cancel: (input: { providerOrderId: string }) => Promise<void>
   getStatus: (input: { providerOrderId: string }) => Promise<PaymentOrderStatus | null>

@@ -7,6 +7,7 @@ import type {
   ApplyPlanInvoiceResult,
   CatalogProviderIds,
   ConfirmationFacts,
+  DisplayPrice,
   FluxPack,
   FluxPackListItem,
   FluxPlan,
@@ -35,15 +36,17 @@ export {
   isSteamRefundShapedStatus,
 } from './adapters/steam'
 export { createSteamMicroTxnClient } from './adapters/steam-client'
-export { createStripePaymentProvider } from './adapters/stripe'
+export { createStripeDisplayPrice, createStripePaymentProvider } from './adapters/stripe'
 export type {
   ApplyConfirmationResult,
   ApplyPlanInvoiceResult,
   ConfirmationFacts,
+  DisplayPrice,
   FluxPack,
   FluxPackListItem,
   FluxPlan,
   FluxPlanListItem,
+  HydratedPrice,
   PackStartContext,
   PaymentProvider,
   PlanInvoiceFacts,
@@ -75,6 +78,7 @@ export interface PaymentServiceDeps {
   billing: BillingService
   configKV: ConfigKVService
   subscription: SubscriptionService
+  displayPrice: DisplayPrice
   providers: Partial<Record<PaymentProviderName, PaymentProvider>>
 }
 
@@ -145,22 +149,7 @@ export function createPaymentService(deps: PaymentServiceDeps) {
       periodQuota: plan.periodQuota,
       periodMonths: plan.periodMonths ?? 1,
       recommended: plan.recommended ?? false,
-      defaultCurrency: plan.defaultCurrency,
-      displayPrices: plan.displayPrices,
       providers: plan.providers ?? {},
-    }))
-  }
-
-  async function listFluxPlans(): Promise<FluxPlanListItem[]> {
-    return (await loadFluxPlans()).map(plan => ({
-      planKey: plan.key,
-      ...(plan.providers.stripe?.priceId ? { stripePriceId: plan.providers.stripe.priceId } : {}),
-      label: plan.name,
-      periodQuota: plan.periodQuota,
-      periodMonths: plan.periodMonths,
-      defaultCurrency: plan.defaultCurrency,
-      currencies: plan.displayPrices,
-      recommended: plan.recommended,
     }))
   }
 
@@ -450,11 +439,49 @@ export function createPaymentService(deps: PaymentServiceDeps) {
   }
 
   return {
-    async listPacks(provider: PaymentProviderName): Promise<FluxPackListItem[]> {
-      const adapter = requireProvider(provider)
-      return adapter.listPackages(await loadFluxPacks())
+    async listPacks(): Promise<FluxPackListItem[]> {
+      const packs = await loadFluxPacks()
+      const priceIds = packs.flatMap(pack => pack.providers.stripe?.priceId ? [pack.providers.stripe.priceId] : [])
+      const prices = await deps.displayPrice.hydrate(priceIds)
+
+      return packs.flatMap((pack) => {
+        const priceId = pack.providers.stripe?.priceId
+        const price = priceId ? prices.get(priceId) : undefined
+        if (!price)
+          return []
+        return [{
+          packKey: pack.key,
+          stripePriceId: price.priceId,
+          label: pack.name,
+          defaultCurrency: price.defaultCurrency,
+          currencies: price.currencies,
+          recommended: pack.recommended,
+        }]
+      })
     },
-    listPlans: () => listFluxPlans(),
+
+    async listPlans(): Promise<FluxPlanListItem[]> {
+      const plans = await loadFluxPlans()
+      const priceIds = plans.flatMap(plan => plan.providers.stripe?.priceId ? [plan.providers.stripe.priceId] : [])
+      const prices = await deps.displayPrice.hydrate(priceIds)
+
+      return plans.flatMap((plan) => {
+        const priceId = plan.providers.stripe?.priceId
+        const price = priceId ? prices.get(priceId) : undefined
+        if (!price)
+          return []
+        return [{
+          planKey: plan.key,
+          stripePriceId: price.priceId,
+          label: plan.name,
+          periodQuota: plan.periodQuota,
+          periodMonths: plan.periodMonths,
+          defaultCurrency: price.defaultCurrency,
+          currencies: price.currencies,
+          recommended: plan.recommended,
+        }]
+      })
+    },
 
     resolvePack,
     resolvePlan,

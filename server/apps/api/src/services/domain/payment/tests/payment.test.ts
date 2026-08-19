@@ -1,6 +1,6 @@
 import type { Database } from '../../../../libs/db'
 import type { ConfigKVService } from '../../../adapters/config-kv'
-import type { FluxPack, FluxPlan, PaymentProvider, ProviderCreateInput } from '../types'
+import type { DisplayPrice, FluxPack, FluxPlan, HydratedPrice, PaymentProvider, ProviderCreateInput } from '../types'
 
 import { and, eq } from 'drizzle-orm'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -28,8 +28,6 @@ const plusPlan: FluxPlan = {
   periodQuota: 1000,
   periodMonths: 1,
   recommended: false,
-  defaultCurrency: 'usd',
-  displayPrices: { usd: '$9.99' },
   providers: { stripe: { priceId: 'price_plus' } },
 }
 
@@ -44,22 +42,43 @@ function createTestPaymentProvider(options?: {
         url: `https://checkout.stripe.test/${input.paymentOrderId}`,
       }
     },
-    async listPackages(packs) {
-      return packs.map(pack => ({
-        packKey: pack.key,
-        stripePriceId: pack.providers.stripe?.priceId,
-        label: pack.name,
-        defaultCurrency: 'usd',
-        currencies: { usd: '$5.00' },
-        recommended: pack.recommended,
-      }))
-    },
     confirmed() {
       throw new Error('test adapter does not map native payloads')
     },
     async cancel() {},
     async getStatus() {
       return null
+    },
+  }
+}
+
+function createTestDisplayPrice(
+  prices: Record<string, HydratedPrice> = {
+    price_starter: {
+      priceId: 'price_starter',
+      defaultCurrency: 'usd',
+      currencies: { usd: '$5.00' },
+    },
+    price_plus: {
+      priceId: 'price_plus',
+      defaultCurrency: 'usd',
+      currencies: { usd: '$12.00' },
+    },
+  },
+): DisplayPrice & { setPrices: (next: Record<string, HydratedPrice>) => void } {
+  let map = prices
+  return {
+    async hydrate(priceIds) {
+      const result = new Map<string, HydratedPrice>()
+      for (const id of priceIds) {
+        const price = map[id]
+        if (price)
+          result.set(id, price)
+      }
+      return result
+    },
+    setPrices(next) {
+      map = next
     },
   }
 }
@@ -88,6 +107,7 @@ describe('payment CORE', () => {
   let db: Database
   let redis: ReturnType<typeof createTestRedis>
   let configKV: ReturnType<typeof createPacksConfigKV>
+  let displayPrice: ReturnType<typeof createTestDisplayPrice>
   let payment: ReturnType<typeof createPaymentService>
   let subscription: ReturnType<typeof createSubscriptionService>
   let createCalls: ProviderCreateInput[]
@@ -105,6 +125,7 @@ describe('payment CORE', () => {
   beforeEach(async () => {
     redis = createTestRedis()
     configKV = createPacksConfigKV([starterPack])
+    displayPrice = createTestDisplayPrice()
     applyDuringCreate = false
     createCalls = []
     const billing = createBillingService(db, redis, configKV)
@@ -135,6 +156,7 @@ describe('payment CORE', () => {
       billing,
       configKV,
       subscription,
+      displayPrice,
       providers: { stripe },
     })
     payment = service
@@ -208,8 +230,8 @@ describe('payment CORE', () => {
     expect(await redis.get(userFluxRedisKey('user-pay-1'))).toBe('500')
   })
 
-  it('listPacks returns platform price items through the provider', async () => {
-    const items = await payment.listPacks('stripe')
+  it('listPacks joins ConfigKV packs to hydrated Stripe prices', async () => {
+    const items = await payment.listPacks()
     expect(items).toEqual([{
       packKey: 'starter',
       stripePriceId: 'price_starter',
@@ -218,6 +240,42 @@ describe('payment CORE', () => {
       currencies: { usd: '$5.00' },
       recommended: false,
     }])
+  })
+
+  // ROOT CAUSE:
+  //
+  // Plans used ConfigKV displayPrices while packs hydrated live Stripe Prices.
+  // Checkout charged the Stripe priceId, so the plan card could show a stale
+  // string that did not match the amount Stripe would charge.
+  //
+  // We fixed this by joining FLUX_PLANS to DisplayPrice.hydrate, the same path
+  // packs use. ConfigKV keeps entitlement and priceId only.
+  it('listPlans joins ConfigKV plans to hydrated Stripe prices', async () => {
+    const items = await payment.listPlans()
+    expect(items).toEqual([{
+      planKey: 'plus',
+      stripePriceId: 'price_plus',
+      label: 'Plus',
+      periodQuota: 1000,
+      periodMonths: 1,
+      defaultCurrency: 'usd',
+      currencies: { usd: '$12.00' },
+      recommended: false,
+    }])
+  })
+
+  it('listPlans omits a plan when hydrate misses the price id', async () => {
+    displayPrice.setPrices({})
+    await expect(payment.listPlans()).resolves.toEqual([])
+  })
+
+  it('startPlan still charges the ConfigKV priceId, not display strings', async () => {
+    await startPlusPlan()
+    expect(createCalls).toHaveLength(1)
+    const call = createCalls[0]
+    expect(call?.kind).toBe('plan')
+    if (call?.kind === 'plan')
+      expect(call.plan.providers.stripe?.priceId).toBe('price_plus')
   })
 
   it('resolvePack finds a pack by Stripe price id', async () => {

@@ -19,8 +19,6 @@ const plusPlan: FluxPlan = {
   periodQuota: 1000,
   periodMonths: 1,
   recommended: true,
-  defaultCurrency: 'usd',
-  displayPrices: { usd: '$10.00' },
   providers: { stripe: { priceId: 'price_plus' } },
 }
 

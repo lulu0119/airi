@@ -244,8 +244,8 @@ export const configEntrySchemas = {
   // Debt-ledger TTL: residual TTS chars below 1 Flux are forgiven on expiry.
   // 24h gives users a long-enough window for accumulated dust to settle naturally.
   TTS_DEBT_TTL_SECONDS: optional(number(), 86400),
-  // One-time Flux packs. Display prices are preformatted strings keyed by
-  // currency. Provider ids map each pack onto a payment channel.
+  // One-time Flux packs. Display prices come from Stripe Price hydration.
+  // Provider ids map each pack onto a payment channel.
   FLUX_PACKS: optional(array(object({
     key: pipe(string(), nonEmpty('FLUX_PACKS[].key must not be empty')),
     name: pipe(string(), nonEmpty('FLUX_PACKS[].name must not be empty')),
@@ -264,14 +264,13 @@ export const configEntrySchemas = {
     }), {}),
   })), []),
   // Subscription plans. periodQuota is monthly Flux granted each billing period.
+  // Display prices come from Stripe Price hydration, not ConfigKV strings.
   FLUX_PLANS: optional(array(object({
     key: pipe(string(), nonEmpty('FLUX_PLANS[].key must not be empty')),
     name: pipe(string(), nonEmpty('FLUX_PLANS[].name must not be empty')),
     periodQuota: pipe(number(), minValue(1, 'FLUX_PLANS[].periodQuota must be >= 1')),
     periodMonths: optional(pipe(number(), minValue(1, 'FLUX_PLANS[].periodMonths must be >= 1')), 1),
     recommended: optional(boolean(), false),
-    defaultCurrency: pipe(string(), nonEmpty('FLUX_PLANS[].defaultCurrency must not be empty')),
-    displayPrices: record(string(), string()),
     providers: optional(object({
       stripe: optional(object({
         priceId: pipe(string(), nonEmpty('FLUX_PLANS[].providers.stripe.priceId must not be empty')),

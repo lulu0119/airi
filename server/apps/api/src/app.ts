@@ -11,13 +11,13 @@ import type { FluxService } from './services/domain/flux'
 import type { FluxTransactionService } from './services/domain/flux-transaction'
 import type { LlmRouterService } from './services/domain/llm-router'
 import type { PaymentProvider, PaymentService } from './services/domain/payment'
-import type { SubscriptionService } from './services/domain/subscription'
 import type { AppleIapVerifier } from './services/domain/payment/adapters/apple-verifier'
 import type { SteamMicroTxnClient } from './services/domain/payment/adapters/steam-client'
 import type { ProductEventService } from './services/domain/product-events'
 import type { ProviderCatalogService } from './services/domain/provider-catalog'
 import type { ProviderService } from './services/domain/providers'
 import type { RequestLogService } from './services/domain/request-log'
+import type { SubscriptionService } from './services/domain/subscription'
 import type { UserDeletionService } from './services/domain/user-deletion'
 import type { VoicePackService } from './services/domain/voice-packs'
 import type { HonoEnv } from './types/hono'
@@ -70,13 +70,13 @@ import { createChatService } from './services/domain/chats'
 import { createFluxService } from './services/domain/flux'
 import { createFluxTransactionService } from './services/domain/flux-transaction'
 import { createConcurrencyLedger, createConfigSyncSubscriber, createLlmRouterService } from './services/domain/llm-router'
-import { createApplePaymentProvider, createPaymentService, createSteamMicroTxnClient, createSteamPaymentProvider, createStripePaymentProvider } from './services/domain/payment'
-import { createSubscriptionService } from './services/domain/subscription'
+import { createApplePaymentProvider, createPaymentService, createSteamMicroTxnClient, createSteamPaymentProvider, createStripeDisplayPrice, createStripePaymentProvider } from './services/domain/payment'
 import { createAppleIapVerifier } from './services/domain/payment/adapters/apple-verifier'
 import { createProductEventService } from './services/domain/product-events'
 import { createProviderCatalogService } from './services/domain/provider-catalog'
 import { createProviderService } from './services/domain/providers'
 import { createRequestLogService } from './services/domain/request-log'
+import { createSubscriptionService } from './services/domain/subscription'
 import { createUserDeletionService } from './services/domain/user-deletion'
 import { createVoicePackService } from './services/domain/voice-packs'
 import { createEnvelopeCrypto } from './utils/envelope-crypto'
@@ -671,13 +671,19 @@ export async function createApp() {
     ),
   })
 
+  const stripeDisplayPrice = injeca.provide('services:stripeDisplayPrice', {
+    dependsOn: { stripe },
+    build: ({ dependsOn }) => createStripeDisplayPrice(dependsOn.stripe),
+  })
+
   const paymentService = injeca.provide('services:payment', {
-    dependsOn: { db, billingService, configKV, stripeAdapter, appleAdapter, steamAdapter, subscriptionService },
+    dependsOn: { db, billingService, configKV, stripeAdapter, appleAdapter, steamAdapter, subscriptionService, stripeDisplayPrice },
     build: ({ dependsOn }) => createPaymentService({
       db: dependsOn.db,
       billing: dependsOn.billingService,
       configKV: dependsOn.configKV,
       subscription: dependsOn.subscriptionService,
+      displayPrice: dependsOn.stripeDisplayPrice,
       providers: {
         stripe: dependsOn.stripeAdapter,
         apple_iap: dependsOn.appleAdapter,

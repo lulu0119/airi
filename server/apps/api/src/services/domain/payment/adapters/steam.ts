@@ -43,10 +43,6 @@ export function isSteamRefundShapedStatus(status: string): boolean {
  */
 export function createSteamPaymentProvider(): PaymentProvider {
   return {
-    async listPackages() {
-      return []
-    },
-
     async create(_input: ProviderCreateInput): Promise<ProviderCreateResult> {
       throw createServiceUnavailableError(
         'Steam MicroTxn create is not used; grants come from GetReport',

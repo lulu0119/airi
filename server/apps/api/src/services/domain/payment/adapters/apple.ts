@@ -23,10 +23,6 @@ export interface AppleConfirmedNative {
  */
 export function createApplePaymentProvider(): PaymentProvider {
   return {
-    async listPackages() {
-      return []
-    },
-
     async create(_input: ProviderCreateInput): Promise<ProviderCreateResult> {
       throw createServiceUnavailableError(
         'Apple IAP does not create checkout sessions',

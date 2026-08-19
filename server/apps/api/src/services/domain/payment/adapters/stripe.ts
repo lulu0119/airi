@@ -1,7 +1,7 @@
 import type Stripe from 'stripe'
 
 import type { ConfigKVService } from '../../../adapters/config-kv'
-import type { ConfirmationFacts, FluxPack, FluxPackListItem, PaymentProvider, ProviderCreateInput, ProviderCreateResult } from '../types'
+import type { ConfirmationFacts, DisplayPrice, HydratedPrice, PaymentProvider, ProviderCreateInput, ProviderCreateResult } from '../types'
 
 import { useLogger } from '@guiiai/logg'
 import { array, looseObject, nullable, number, optional, safeParse, string, union } from 'valibot'
@@ -13,32 +13,26 @@ const logger = useLogger('payment.stripe')
 type CheckoutSessionCreateParams = NonNullable<Parameters<Stripe['checkout']['sessions']['create']>[0]>
 
 /**
- * Stripe adapter for the Payment Provider port.
+ * Stripe DisplayPrice adapter.
  *
- * Checkout create and native-to-facts mapping live here. Signature verify and
- * Customer Portal stay in the Stripe route.
+ * Retrieves live Prices and formats display strings. Catalog join lives in
+ * Payment CORE. Checkout create stays on {@link createStripePaymentProvider}.
  */
-export function createStripePaymentProvider(
-  stripe: Stripe | null,
-  configKV: ConfigKVService,
-): PaymentProvider {
+export function createStripeDisplayPrice(stripe: Stripe | null): DisplayPrice {
   return {
-    async listPackages(packs: FluxPack[]): Promise<FluxPackListItem[]> {
+    async hydrate(priceIds: string[]): Promise<ReadonlyMap<string, HydratedPrice>> {
+      const result = new Map<string, HydratedPrice>()
       if (!stripe)
-        return []
+        return result
 
-      const items: FluxPackListItem[] = []
-      for (const pack of packs) {
-        const priceId = pack.providers.stripe?.priceId
-        if (!priceId)
-          continue
-
+      const uniqueIds = [...new Set(priceIds.filter(id => id.length > 0))]
+      for (const priceId of uniqueIds) {
         let price: Stripe.Price
         try {
           price = await stripe.prices.retrieve(priceId, { expand: ['currency_options'] })
         }
         catch (error) {
-          logger.withError(error).withFields({ priceId, packKey: pack.key }).warn('Stripe price lookup skipped')
+          logger.withError(error).withFields({ priceId }).warn('Stripe price lookup skipped')
           continue
         }
 
@@ -48,19 +42,30 @@ export function createStripePaymentProvider(
           currencies[currency] = formatPrice(option.unit_amount, currency)
         }
 
-        items.push({
-          packKey: pack.key,
-          stripePriceId: price.id,
-          label: pack.name,
+        result.set(priceId, {
+          priceId: price.id,
           defaultCurrency: price.currency,
           currencies,
-          recommended: pack.recommended,
         })
       }
 
-      return items
+      return result
     },
+  }
+}
 
+/**
+ * Stripe adapter for the Payment Provider port.
+ *
+ * Checkout create and native-to-facts mapping live here. Signature verify and
+ * Customer Portal stay in the Stripe route. Display prices use
+ * {@link createStripeDisplayPrice}.
+ */
+export function createStripePaymentProvider(
+  stripe: Stripe | null,
+  configKV: ConfigKVService,
+): PaymentProvider {
+  return {
     async create(input: ProviderCreateInput): Promise<ProviderCreateResult> {
       if (!stripe)
         throw createServiceUnavailableError('Stripe is not configured', 'STRIPE_NOT_CONFIGURED')
