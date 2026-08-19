@@ -52,7 +52,7 @@ function createTestApp(deps: {
   const app = new Hono<HonoEnv>()
   app.onError((err, c) => {
     if (err instanceof ApiError) {
-      return c.json({ error: err.errorCode, message: err.message }, err.statusCode as 400)
+      return c.json({ error: err.errorCode, message: err.message }, err.statusCode)
     }
     throw err
   })
