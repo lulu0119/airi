@@ -28,10 +28,21 @@ CREATE TABLE "provider_account" (
 CREATE UNIQUE INDEX "payment_order_provider_order_uidx" ON "payment_order" USING btree ("provider","provider_order_id") WHERE provider_order_id IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "payment_order_user_id_idx" ON "payment_order" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "provider_account_provider_customer_uidx" ON "provider_account" USING btree ("provider","provider_customer_id") WHERE deleted_at IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "provider_account_provider_user_uidx" ON "provider_account" USING btree ("provider","user_id") WHERE deleted_at IS NULL;--> statement-breakpoint
 CREATE INDEX "provider_account_user_id_idx" ON "provider_account" USING btree ("user_id");--> statement-breakpoint
+-- stripe_customer allowed several live rows per user. Copy the oldest live row and all deleted rows.
 INSERT INTO "provider_account" ("id", "user_id", "provider", "provider_customer_id", "created_at", "updated_at", "deleted_at")
 SELECT "id", "user_id", 'stripe', "stripe_customer_id", "created_at", "updated_at", "deleted_at"
-FROM "stripe_customer";--> statement-breakpoint
+FROM "stripe_customer"
+WHERE "deleted_at" IS NOT NULL
+UNION ALL
+SELECT "id", "user_id", 'stripe', "stripe_customer_id", "created_at", "updated_at", "deleted_at"
+FROM (
+	SELECT DISTINCT ON ("user_id") *
+	FROM "stripe_customer"
+	WHERE "deleted_at" IS NULL
+	ORDER BY "user_id", "created_at" ASC, "id" ASC
+) live;--> statement-breakpoint
 ALTER TABLE "user_flux" DROP COLUMN "stripe_customer_id";--> statement-breakpoint
 DROP TABLE "stripe_checkout_session" CASCADE;--> statement-breakpoint
 DROP TABLE "stripe_invoice" CASCADE;--> statement-breakpoint

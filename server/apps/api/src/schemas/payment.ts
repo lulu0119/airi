@@ -43,6 +43,9 @@ export const providerAccount = pgTable('provider_account', {
   uniqueIndex('provider_account_provider_customer_uidx')
     .on(table.provider, table.providerCustomerId)
     .where(sql`deleted_at IS NULL`),
+  uniqueIndex('provider_account_provider_user_uidx')
+    .on(table.provider, table.userId)
+    .where(sql`deleted_at IS NULL`),
   index('provider_account_user_id_idx').on(table.userId),
 ])
 

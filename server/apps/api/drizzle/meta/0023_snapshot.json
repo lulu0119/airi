@@ -3269,6 +3269,28 @@
           "method": "btree",
           "with": {}
         },
+        "provider_account_provider_user_uidx": {
+          "name": "provider_account_provider_user_uidx",
+          "columns": [
+            {
+              "expression": "provider",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "deleted_at IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "provider_account_user_id_idx": {
           "name": "provider_account_user_id_idx",
           "columns": [

@@ -39,8 +39,8 @@ export async function loadFluxPacks(configKV: ConfigKVService): Promise<FluxPack
  * -> {@link BillingService.creditFlux}
  */
 export function createPaymentService(db: Database, billing: BillingService) {
-  async function upsertProviderAccount(
-    tx: Pick<Database, 'insert' | 'update' | 'select'>,
+  async function insertProviderAccountIfAbsent(
+    tx: Pick<Database, 'insert' | 'select'>,
     userId: string,
     provider: string,
     providerCustomerId: string,
@@ -55,19 +55,15 @@ export function createPaymentService(db: Database, billing: BillingService) {
       ))
       .limit(1)
 
-    const now = new Date()
-    if (existing) {
-      await tx.update(schema.providerAccount)
-        .set({ userId, updatedAt: now })
-        .where(eq(schema.providerAccount.id, existing.id))
+    if (existing)
       return
-    }
 
+    // Unique races must not abort the settle transaction.
     await tx.insert(schema.providerAccount).values({
       userId,
       provider,
       providerCustomerId,
-    })
+    }).onConflictDoNothing()
   }
 
   async function claimExistingOrder(receipt: ClaimReceipt): Promise<SettleResult> {
@@ -122,7 +118,7 @@ export function createPaymentService(db: Database, billing: BillingService) {
           })
 
           if (receipt.providerCustomerId) {
-            await upsertProviderAccount(tx, order.userId, order.provider, receipt.providerCustomerId)
+            await insertProviderAccountIfAbsent(tx, order.userId, order.provider, receipt.providerCustomerId)
           }
 
           return {
