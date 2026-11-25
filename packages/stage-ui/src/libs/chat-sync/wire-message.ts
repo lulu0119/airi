@@ -117,8 +117,6 @@ export function isCloudSyncableMessage(message: ChatHistoryItem): boolean {
 export function wireMessageToLocal(wire: WireMessage): ChatHistoryItem {
   switch (wire.role) {
     case 'assistant': {
-      // Rebuild slices and tool_results so downstream UI code can assume
-      // the ChatAssistantMessage invariants.
       const assistant: ChatAssistantMessage = {
         role: 'assistant',
         content: wire.content,
